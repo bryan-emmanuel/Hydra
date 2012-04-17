@@ -20,11 +20,11 @@ public class AcceptThread implements Runnable {
 		mSalt = salt;
 	}
 	
-	public int getClientThreads() {
+	public synchronized int getClientThreads() {
 		return mClientThreads.size();
 	}
 	
-	public void removeClientThread(int index) {
+	public synchronized void removeClientThread(int index) {
 		mClientThreads.remove(index);
 	}
 

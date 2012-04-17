@@ -20,8 +20,8 @@ public class UnidataConnection extends DatabaseConnection {
 	private static final String SIMPLE_QUERY_FORMAT = "SELECT %s";
 	private static final String SELECTION_QUERY_FORMAT = "SELECT %s WITH %s";
 
-	public UnidataConnection(String hostName, String hostPort, String accountPath, String username, String password, long timeout) {
-		super(hostName, hostPort, accountPath, username, password, timeout);
+	public UnidataConnection(String hostName, String hostPort, String accountPath, String username, String password) {
+		super(hostName, hostPort, accountPath, username, password);
 	}
 
 	@Override
@@ -43,8 +43,7 @@ public class UnidataConnection extends DatabaseConnection {
 	@Override
 	public void disconnect() throws Exception {
 		super.disconnect();
-		// check if client threads are waiting for a connection
-		if ((mSession != null) && !HydraService.pendingConnections()) {
+		if (mSession != null) {
 			mSession.disconnect();
 		}
 	}

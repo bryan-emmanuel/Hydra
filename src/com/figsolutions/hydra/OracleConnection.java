@@ -21,8 +21,8 @@ public class OracleConnection extends DatabaseConnection {
 	private static final String UPDATE_QUERY = "UPDATE %s SET %s WHERE %s";
 	private static final String DELETE_QUERY = "DELETE FROM %s WHERE %s";
 
-	public OracleConnection(String hostName, String hostPort, String accountPath, String username, String password, long timeout) {
-		super(hostName, hostPort, accountPath, username, password, timeout);
+	public OracleConnection(String hostName, String hostPort, String accountPath, String username, String password) {
+		super(hostName, hostPort, accountPath, username, password);
 	}
 
 	@Override
@@ -48,7 +48,7 @@ public class OracleConnection extends DatabaseConnection {
 	@Override
 	public void disconnect() throws Exception {
 		super.disconnect();
-		if ((mDataSource != null) && !HydraService.pendingConnections()) {
+		if (mDataSource != null) {
 			if (mConnection != null) {
 				mConnection.close();
 			}

@@ -19,8 +19,8 @@ public class PostgreSQLConnection extends DatabaseConnection {
 	private static final String UPDATE_QUERY = "UPDATE %s SET %s WHERE %s";
 	private static final String DELETE_QUERY = "DELETE FROM %s WHERE %s";
 
-	public PostgreSQLConnection(String hostName, String hostPort, String accountPath, String username, String password, long timeout) {
-		super(hostName, hostPort, accountPath, username, password, timeout);
+	public PostgreSQLConnection(String hostName, String hostPort, String accountPath, String username, String password) {
+		super(hostName, hostPort, accountPath, username, password);
 	}
 
 	@Override
@@ -41,7 +41,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 	@Override
 	public void disconnect() throws Exception {
 		super.disconnect();
-		if ((mConnection != null) && !HydraService.pendingConnections()) {
+		if (mConnection != null) {
 			mConnection.close();
 		}
 	}

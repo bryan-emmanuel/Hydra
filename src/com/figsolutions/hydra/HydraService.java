@@ -35,7 +35,6 @@ public class HydraService {
 	private static final String sUsername = "username";
 	private static final String sPassword = "password";
 	private static final String sConnections = "connections";
-	private static final String sConnectionTimeout = "ConnectionTimeout";
 	private static String sConnectionPassphrase;
 	private static String sSalt;
 	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
@@ -77,7 +76,6 @@ public class HydraService {
 				database.put(sUsername, (String) databaseIn.get(sUsername));
 				database.put(sPassword, (String) databaseIn.get(sPassword));
 				database.put(sConnections, (String) databaseIn.get(sConnections));
-				database.put(sConnectionTimeout, (String) databaseIn.get(sConnectionTimeout));
 				sDatabaseSettings.put(alias, database);
 				sDatabaseConnections.put(alias, new ArrayList<DatabaseConnection>());
 			}
@@ -160,19 +158,19 @@ public class HydraService {
 			if (connections.size() < Integer.parseInt(databaseSettings.get(sConnections))) {
 				String type = databaseSettings.get(sType);
 				if (type.equals("unidata")) {
-					databaseConnection = new UnidataConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), Long.parseLong(databaseSettings.get(sConnectionTimeout)));
+					databaseConnection = new UnidataConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
 					databaseConnection.connect();
 				} else if (type.equals("mssql")) {
-					databaseConnection = new MSSQLConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), Long.parseLong(databaseSettings.get(sConnectionTimeout)));
+					databaseConnection = new MSSQLConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
 					databaseConnection.connect();
 				} else if (type.equals("oracle")) {
-					databaseConnection = new OracleConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), Long.parseLong(databaseSettings.get(sConnectionTimeout)));
+					databaseConnection = new OracleConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
 					databaseConnection.connect();
 				} else if (type.equals("mysql")) {
-					databaseConnection = new MySQLConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), Long.parseLong(databaseSettings.get(sConnectionTimeout)));
+					databaseConnection = new MySQLConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
 					databaseConnection.connect();
 				} else if (type.equals("postresql")) {
-					databaseConnection = new PostgreSQLConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), Long.parseLong(databaseSettings.get(sConnectionTimeout)));
+					databaseConnection = new PostgreSQLConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
 					databaseConnection.connect();
 				} else {
 					throw new Exception("unknown type:" + type);
@@ -186,15 +184,32 @@ public class HydraService {
 		return databaseConnection;
 	}
 
-	public static boolean pendingConnections() {
-		return (sAcceptThread.getClientThreads() >= sDatabaseConnections.size());
-	}
-
 	public synchronized static void removeClientThread(int index) {
-		//TODO: when should database connections be cleaned up? timeout which is set in the connect() method
-		if (sAcceptThread.getClientThreads() > index) {
+		int clients = sAcceptThread.getClientThreads();
+		if (clients > index) {
 			sAcceptThread.removeClientThread(index);
 		}
+		// maintain atleast as many connections/database as client threads
+		Set<String> keys = sDatabaseConnections.keySet();
+		Iterator<String> iter = keys.iterator();
+		while (iter.hasNext()) {
+			ArrayList<DatabaseConnection> connections = sDatabaseConnections.get(iter.next());
+			// clean up unnecessary connections
+			for (int i = 0; (i < connections.size()) && (connections.size() > clients); i++) {
+				DatabaseConnection connection = connections.get(i);
+				if (!connection.isLocked()) {
+					try {
+						connection.disconnect();
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+					// remove the connection and back up the index
+					connections.remove(i);
+					i--;
+				}
+			}
+		}
+		
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -203,7 +218,7 @@ public class HydraService {
 		Set<String> databases = sDatabaseSettings.keySet();
 		JSONArray arr = new JSONArray();
 		Iterator<String> iter = databases.iterator();
-		while(iter.hasNext()) {
+		while (iter.hasNext()) {
 			arr.add(iter.next());
 		}
 		response.put("result", arr);

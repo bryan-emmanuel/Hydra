@@ -145,7 +145,7 @@ public class ClientThread implements Runnable {
 								}
 
 								// release the connection
-								databaseConnection.disconnect();
+								databaseConnection.release();
 							}
 						}
 
@@ -177,11 +177,7 @@ public class ClientThread implements Runnable {
 		} finally {
 			HydraService.removeClientThread(mClientIndex);
 			if (databaseConnection != null) {
-				try {
-					databaseConnection.disconnect();
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+				databaseConnection.release();
 			}
 			try {
 				mSocket.close();

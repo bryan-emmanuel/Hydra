@@ -9,17 +9,14 @@ public class DatabaseConnection {
 	protected String mAccountPath;
 	protected String mUsername;
 	protected String mPassword;
-	protected long mLastConnected;
-	protected long mTimeout;
 	protected boolean mLock;
 	
-	public DatabaseConnection(String hostName, String hostPort, String accountPath, String username, String password, long timeout) {
+	public DatabaseConnection(String hostName, String hostPort, String accountPath, String username, String password) {
 		mHostName = hostName;
 		mHostPort = hostPort;
 		mAccountPath = accountPath;
 		mUsername = username;
 		mPassword = password;
-		mTimeout = timeout;
 	}
 	
 	public boolean connect() throws Exception {
@@ -27,16 +24,18 @@ public class DatabaseConnection {
 			throw new Exception("connection locked");
 		}
 		mLock = true;
-		mLastConnected = System.currentTimeMillis();
 		return mLock;
 	}
 	
-	public void disconnect() throws Exception {
+	public boolean isLocked() {
+		return mLock;
+	}
+	
+	public void release() {
 		mLock = false;
 	}
 	
-	public boolean timeoutExpired() {
-		return !mLock && System.currentTimeMillis() > (mLastConnected + mTimeout);
+	public void disconnect() throws Exception {
 	}
 	
 	public JSONObject execute(String statement) {
