@@ -48,7 +48,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 	
 	@SuppressWarnings("unchecked")
 	@Override
-	public String execute(String statement) {
+	public JSONObject execute(String statement) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		Statement s = null;
@@ -92,12 +92,12 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public String query(String object, String[] columns, String selection) {
+	public JSONObject query(String object, String[] columns, String selection) {
 		Statement s = null;
 		ResultSet rs = null;
 		JSONObject response = new JSONObject();
@@ -148,12 +148,12 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public String insert(String object, String[] columns, String[] values) {
+	public JSONObject insert(String object, String[] columns, String[] values) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		Statement s = null;
@@ -213,12 +213,12 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public String update(String object, String[] columns, String[] values, String selection) {
+	public JSONObject update(String object, String[] columns, String[] values, String selection) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		Statement s = null;
@@ -271,12 +271,12 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public String delete(String object, String selection) {
+	public JSONObject delete(String object, String selection) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		Statement s = null;
@@ -320,7 +320,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 }

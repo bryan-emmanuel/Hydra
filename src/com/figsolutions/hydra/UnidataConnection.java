@@ -51,7 +51,7 @@ public class UnidataConnection extends DatabaseConnection {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public String execute(String statement) {
+	public JSONObject execute(String statement) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		try {
@@ -67,12 +67,12 @@ public class UnidataConnection extends DatabaseConnection {
 			e.printStackTrace();
 		}
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public String query(String object, String[] columns, String selection) {
+	public JSONObject query(String object, String[] columns, String selection) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		UniFile uFile = null;
@@ -121,21 +121,21 @@ public class UnidataConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public String insert(String object, String[] columns, String[] values) {
+	public JSONObject insert(String object, String[] columns, String[] values) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public String update(String object, String[] columns, String[] values, String selection) {
+	public JSONObject update(String object, String[] columns, String[] values, String selection) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		UniFile uFile = null;
@@ -182,16 +182,16 @@ public class UnidataConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public String delete(String object, String selection) {
+	public JSONObject delete(String object, String selection) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		response.put("errors", errors);
-		return response.toString();
+		return response;
 	}
 
 }

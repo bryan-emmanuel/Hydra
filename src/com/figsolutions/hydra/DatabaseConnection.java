@@ -1,5 +1,7 @@
 package com.figsolutions.hydra;
 
+import org.json.simple.JSONObject;
+
 public class DatabaseConnection {
 	
 	protected String mHostName;
@@ -37,23 +39,23 @@ public class DatabaseConnection {
 		return !mLock && System.currentTimeMillis() > (mLastConnected + mTimeout);
 	}
 	
-	public String execute(String statement) {
+	public JSONObject execute(String statement) {
 		return null;
 	}
 	
-	public String query(String object, String[] columns, String selection) {
+	public JSONObject query(String object, String[] columns, String selection) {
 		return null;
 	}
 	
-	public String insert(String object, String[] columns, String[] values) {
+	public JSONObject insert(String object, String[] columns, String[] values) {
 		return null;
 	}
 	
-	public String update(String object, String[] columns, String[] values, String selection) {
+	public JSONObject update(String object, String[] columns, String[] values, String selection) {
 		return null;
 	}
 	
-	public String delete(String object, String selection) {
+	public JSONObject delete(String object, String selection) {
 		return null;
 	}
 }

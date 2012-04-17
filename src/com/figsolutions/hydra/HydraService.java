@@ -6,6 +6,10 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -21,18 +25,21 @@ public class HydraService {
 	private static int sListenPort = 9001;
 	private static int sClientThreadSize = 1;
 	private static AcceptThread sAcceptThread;
-	private static final String sAlias = "Alias";
-	private static final String sType = "Type";
-	private static final String sDatabase = "Database";
-	private static final String sHostName = "HostName";
-	private static final String sHostPort = "HostPort";
-	private static final String sUsername = "Username";
-	private static final String sPassword = "Password";
-	private static final String sConnectionsSize = "ConnectionsSize";
+	private static final String sPassphrase = "passphrase";
+	private static final String sDatabases = "databases";
+	private static final String sAlias = "alias";
+	private static final String sType = "type";
+	private static final String sDatabase = "database";
+	private static final String sHostName = "hostname";
+	private static final String sHostPort = "hostport";
+	private static final String sUsername = "tsername";
+	private static final String sPassword = "password";
+	private static final String sConnections = "connections";
 	private static final String sConnectionTimeout = "ConnectionTimeout";
-	private static HashMap<String, HashMap<String, String>> sDatabases = new HashMap<String, HashMap<String, String>>();
+	private static String sConnectionPassphrase;
+	private static String sSalt;
+	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
 	private static HashMap<String, ArrayList<DatabaseConnection>> sDatabaseConnections = new HashMap<String, ArrayList<DatabaseConnection>>();
-	private static byte[] SCipherKey = "figsolutions".getBytes();
 
 	public static void main(String[] args) {
 
@@ -56,9 +63,11 @@ public class HydraService {
 				content.append(buffer, 0, read);
 			}
 			JSONParser parser = new JSONParser();
-			JSONArray conf = (JSONArray) parser.parse(content.toString());
-			for (int i = 0, l = conf.size(); i < l; i++) {
-				JSONObject databaseIn = (JSONObject) conf.get(i);
+			JSONObject conf = (JSONObject) parser.parse(content.toString());
+			sConnectionPassphrase = (String) conf.get(sPassphrase);
+			JSONArray databases = (JSONArray) conf.get(sDatabases);
+			for (int i = 0, l = databases.size(); i < l; i++) {
+				JSONObject databaseIn = (JSONObject) databases.get(i);
 				String alias = (String) databaseIn.get(sAlias);
 				HashMap<String, String> database = new HashMap<String, String>();
 				database.put(sType, (String) databaseIn.get(sType));
@@ -67,9 +76,9 @@ public class HydraService {
 				database.put(sHostPort, (String) databaseIn.get(sHostPort));
 				database.put(sUsername, (String) databaseIn.get(sUsername));
 				database.put(sPassword, (String) databaseIn.get(sPassword));
-				database.put(sConnectionsSize, (String) databaseIn.get(sConnectionsSize));
+				database.put(sConnections, (String) databaseIn.get(sConnections));
 				database.put(sConnectionTimeout, (String) databaseIn.get(sConnectionTimeout));
-				sDatabases.put(alias, database);
+				sDatabaseSettings.put(alias, database);
 				sDatabaseConnections.put(alias, new ArrayList<DatabaseConnection>());
 			}
 		} catch (FileNotFoundException e1) {
@@ -81,7 +90,24 @@ public class HydraService {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+		
+		// generate a salt
+		String salt = new BigInteger(256, new SecureRandom()).toString(16);
+		MessageDigest md;
+		try {
+			md = MessageDigest.getInstance("SHA-256");
+			md.update(salt.getBytes("UTF-8"));
+			sSalt = new BigInteger(1, md.digest()).toString(16);
+			if (sSalt.length() > 64) {
+				sSalt = sSalt.substring(0, 64);
+			}
+		} catch (NoSuchAlgorithmException e1) {
+			e1.printStackTrace();
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
 
+		// for writing a conf file...
 		//		FileOutputStream fos;
 		//		try {
 		//			fos = new FileOutputStream("hydra.properties");
@@ -94,17 +120,8 @@ public class HydraService {
 		//			e.printStackTrace();
 		//		}
 
-		//		SCipherKey = "figsolutionssupersecretkey".getBytes("UTF-8");
-		//		MessageDigest sha = MessageDigest.getInstance("SHA-1");
-		//		SCipherKey = sha.digest(SCipherKey);
-		//		SCipherKey = Arrays.copyOf(SCipherKey, 16);
-		//		
-		//		SecretKeySpec key = new SecretKeySpec(SCipherKey, "AES");
-		//		cipher = Cipher.getInstance("AES");
-		//	    cipher.init(Cipher.ENCRYPT_MODE, key);
-
 		// listen for connections
-		sAcceptThread = new AcceptThread(sListenPort, sClientThreadSize);
+		sAcceptThread = new AcceptThread(sListenPort, sClientThreadSize, sConnectionPassphrase, sSalt);
 		Thread acceptThread = new Thread(sAcceptThread);
 		acceptThread.start();
 		try {
@@ -137,10 +154,10 @@ public class HydraService {
 			}
 		}
 		// if an existing connection cannot be used
-		if (sDatabases.containsKey(database)) {
+		if (sDatabaseSettings.containsKey(database)) {
 			ArrayList<DatabaseConnection> connections = sDatabaseConnections.get(database);
-			HashMap<String, String> databaseSettings = sDatabases.get(database);
-			if (connections.size() < Integer.parseInt(databaseSettings.get(sConnectionsSize))) {
+			HashMap<String, String> databaseSettings = sDatabaseSettings.get(database);
+			if (connections.size() < Integer.parseInt(databaseSettings.get(sConnections))) {
 				String type = databaseSettings.get(sType);
 				if (type.equals("unidata")) {
 					databaseConnection = new UnidataConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), Long.parseLong(databaseSettings.get(sConnectionTimeout)));
@@ -181,28 +198,28 @@ public class HydraService {
 	}
 	
 	@SuppressWarnings("unchecked")
-	public synchronized static String getDatabases() {
+	public synchronized static JSONObject getDatabases() {
 		JSONObject response = new JSONObject();
-		Set<String> databases = sDatabases.keySet();
+		Set<String> databases = sDatabaseSettings.keySet();
 		JSONArray arr = new JSONArray();
 		Iterator<String> iter = databases.iterator();
 		while(iter.hasNext()) {
 			arr.add(iter.next());
 		}
 		response.put("result", arr);
-		return response.toString();
+		return response;
 	}
 	
 	@SuppressWarnings("unchecked")
-	public synchronized static String getDatabase(String database) {
+	public synchronized static JSONObject getDatabase(String database) {
 		JSONObject response = new JSONObject();
-		if (sDatabases.containsKey(database)) {
-			HashMap<String, String> databaseSettings = sDatabases.get(database);
+		if (sDatabaseSettings.containsKey(database)) {
+			HashMap<String, String> databaseSettings = sDatabaseSettings.get(database);
 			response.put(sAlias, database);
 			response.put(sDatabase, databaseSettings.get(sDatabase));
 			response.put(sHostName, databaseSettings.get(sHostName));
 			response.put(sHostPort, databaseSettings.get(sHostPort));
 		}
-		return response.toString();
+		return response;
 	}
 }

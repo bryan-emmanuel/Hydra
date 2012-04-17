@@ -4,17 +4,20 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.Iterator;
 
 public class AcceptThread implements Runnable {
 	
 	private int mListenPort = 9001;
 	private int mClientThreadSize = 0;
 	private ArrayList<Thread> mClientThreads = new ArrayList<Thread>();
+	private String mPassphrase;
+	private String mSalt;
 
-	public AcceptThread(int listenPort, int clientThreadSize) {
+	public AcceptThread(int listenPort, int clientThreadSize, String passphrase, String salt) {
 		mListenPort = listenPort;
 		mClientThreadSize = clientThreadSize;
+		mPassphrase = passphrase;
+		mSalt = salt;
 	}
 	
 	public int getClientThreads() {
@@ -45,7 +48,7 @@ public class AcceptThread implements Runnable {
 				try {
 					Socket client = socket.accept();
 					if (mClientThreads.size() < mClientThreadSize) {
-						Thread clientThread = new Thread(new ClientThread(client, mClientThreads.size()));
+						Thread clientThread = new Thread(new ClientThread(client, mClientThreads.size(), mPassphrase, mSalt));
 						mClientThreads.add(clientThread);						
 						clientThread.start();
 						clientThread.join();
