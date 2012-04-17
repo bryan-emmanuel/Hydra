@@ -75,8 +75,21 @@ public class ClientThread implements Runnable {
 				Uri request = new Uri(line);
 				String type = request.getScheme();
 				String database = request.getHost();
-				String object = request.getPath().substring(1);
-				String rawQuery = request.getQuery().substring(1);
+				String object = "";
+				String rawQuery = "";
+				if (type.equals("about") && database.startsWith("?")) {
+					rawQuery = database.substring(1);
+					database = "";
+				} else {
+					object = request.getPath();
+					if ((object != null) && (object.length() > 0)) {
+						object = object.substring(1);
+					}
+					rawQuery = request.getQuery();
+					if ((rawQuery != null) && (rawQuery.length() > 0)) {
+						rawQuery = rawQuery.substring(1);
+					}
+				}
 				System.out.println("type:"+type);
 				System.out.println("database:"+database);
 				System.out.println("object:"+object);
@@ -113,26 +126,27 @@ public class ClientThread implements Runnable {
 							response = HydraService.getDatabases();
 						} else {
 
-							databaseConnection = HydraService.getDatabaseConnection(database);
-
 							if (type.equals("about")) {
 								response = HydraService.getDatabase(database);
-							} else if (type.equals("execute") && params.containsKey("statement")) {
-								response = databaseConnection.execute(params.get("statement"));
-							} else if (type.equals("query") && params.containsKey("columns")) {
-								response = databaseConnection.query(object, params.get("columns").split(","), params.get("selection"));
-							} else if (type.equals("update") && params.containsKey("columns") && params.containsKey("values") && params.containsKey("selection")) {
-								response = databaseConnection.update(object, params.get("columns").split(","), params.get("values").split(","), params.get("selection"));
-							} else if (type.equals("insert") && params.containsKey("columns") && params.containsKey("values")) {
-								response = databaseConnection.insert(object, params.get("columns").split(","), params.get("values").split(","));
-							} else if (type.equals("delete") && params.containsKey("selection")) {
-								response = databaseConnection.delete(object, params.get("selection"));
 							} else {
-								throw new Exception("bad request");
-							}
+								databaseConnection = HydraService.getDatabaseConnection(database);
+								if (type.equals("execute") && params.containsKey("statement")) {
+									response = databaseConnection.execute(params.get("statement"));
+								} else if (type.equals("query") && params.containsKey("columns")) {
+									response = databaseConnection.query(object, params.get("columns").split(","), params.get("selection"));
+								} else if (type.equals("update") && params.containsKey("columns") && params.containsKey("values") && params.containsKey("selection")) {
+									response = databaseConnection.update(object, params.get("columns").split(","), params.get("values").split(","), params.get("selection"));
+								} else if (type.equals("insert") && params.containsKey("columns") && params.containsKey("values")) {
+									response = databaseConnection.insert(object, params.get("columns").split(","), params.get("values").split(","));
+								} else if (type.equals("delete") && params.containsKey("selection")) {
+									response = databaseConnection.delete(object, params.get("selection"));
+								} else {
+									throw new Exception("bad request");
+								}
 
-							// release the connection
-							databaseConnection.disconnect();
+								// release the connection
+								databaseConnection.disconnect();
+							}
 						}
 
 						// update the challenge

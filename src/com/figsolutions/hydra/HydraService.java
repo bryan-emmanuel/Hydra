@@ -32,7 +32,7 @@ public class HydraService {
 	private static final String sDatabase = "database";
 	private static final String sHostName = "hostname";
 	private static final String sHostPort = "hostport";
-	private static final String sUsername = "tsername";
+	private static final String sUsername = "username";
 	private static final String sPassword = "password";
 	private static final String sConnections = "connections";
 	private static final String sConnectionTimeout = "ConnectionTimeout";
@@ -215,10 +215,12 @@ public class HydraService {
 		JSONObject response = new JSONObject();
 		if (sDatabaseSettings.containsKey(database)) {
 			HashMap<String, String> databaseSettings = sDatabaseSettings.get(database);
-			response.put(sAlias, database);
-			response.put(sDatabase, databaseSettings.get(sDatabase));
-			response.put(sHostName, databaseSettings.get(sHostName));
-			response.put(sHostPort, databaseSettings.get(sHostPort));
+			JSONObject props = new JSONObject();
+			props.put(sAlias, database);
+			props.put(sDatabase, databaseSettings.get(sDatabase));
+			props.put(sHostName, databaseSettings.get(sHostName));
+			props.put(sHostPort, databaseSettings.get(sHostPort));
+			response.put("result", props);
 		}
 		return response;
 	}
