@@ -108,7 +108,7 @@ public class MySQLConnection extends DatabaseConnection {
 				if (i > 0) {
 					sb.append(",");
 				}
-				sb.append(columns[i]);
+				sb.append(columns[i].replaceAll("\\.", "_"));
 			}
 			String columnsStr = sb.toString();
 			s = mConnection.createStatement();
@@ -164,7 +164,7 @@ public class MySQLConnection extends DatabaseConnection {
 				if (i > 0) {
 					sb.append(",");
 				}
-				sb.append(columns[i]);
+				sb.append(columns[i].replaceAll("\\.", "_"));
 			}
 			String columnsStr = sb.toString();
 			sb = new StringBuilder();
@@ -229,7 +229,7 @@ public class MySQLConnection extends DatabaseConnection {
 				if (i > 0) {
 					sb.append(",");
 				}
-				sb.append(columns[i]);
+				sb.append(columns[i].replaceAll("\\.", "_"));
 				sb.append("=");
 				sb.append(values[i]);
 			}

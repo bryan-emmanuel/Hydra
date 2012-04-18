@@ -140,20 +140,22 @@ public class UnidataConnection extends DatabaseConnection {
 		UniFile uFile = null;
 
 		try {
-			uFile = mSession.openFile(object);
+			JSONArray result = new JSONArray();
 			UniCommand uCommand = mSession.command();
-			uCommand.setCommand(String.format(SIMPLE_QUERY_FORMAT, object, columns).toString());
-			uCommand.exec();
-
-			//						String atFM = uSession.getMarkCharacter(UniTokens.FM);
+			if (selection == null) {
+				uCommand.setCommand(String.format(SIMPLE_QUERY_FORMAT, object).toString());
+			} else {
+				uCommand.setCommand(String.format(SELECTION_QUERY_FORMAT, object, selection).toString());
+			}
 			UniSelectList uSelect = mSession.selectList(0);
-
-			JSONArray result = new JSONArray(); 
-			while (!uSelect.isLastRecordRead()) {
-				uFile.setRecordID(uSelect.next());
+			uCommand.exec();
+			uFile = mSession.openFile(object);
+			UniString recordID = null;
+			while ((recordID = uSelect.next()).length() > 0) {
+				uFile.setRecordID(recordID);
 				for (String column : columns) {
 					JSONObject col = new JSONObject();
-					col.put(column, uFile.readNamedField(column));
+					col.put(column, uFile.readNamedField(column).toString());
 					result.add(col);
 				}
 			}
