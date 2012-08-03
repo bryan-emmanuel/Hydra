@@ -1,8 +1,7 @@
 <%@ page import="java.io.*"%>
 <%@ page import="java.net.*"%>
-<%@ page import="org.json.simple.JSONObject"%>
 <%@ page import="java.security.MessageDigest"%>
-<%@ page import="java.util.HashMap">
+//<%@ page import="java.util.HashMap">
 
 // not sure if these are needed
 <%@ page import="org.xml.sax.InputSource"%>
@@ -54,10 +53,11 @@ for (String s : pnpParams) {
 	values += request.getParameter(s);
 }
 
+Boolean isValid = false;
 // if the request is valid, pass it to Hydra
 
 try {
-	String host = "1.1.1.1";
+	String host = "usci-data1.jungle.usip.edu";
 	String port = "9001";
 	String passphrase = "figsolutions";
 	
@@ -67,39 +67,67 @@ try {
 	
 	BufferedReader br = new BufferedReader(new InputStreamReader(in));
 	String response = br.readLine();
-	if ((response != null) && (response.length() > 0)) {
-		
-		JSONParser parser = new JSONParser();
-		JSONObject obj = parser.parse(response);
-		String salt = obj.get("salt");
-		String challenge = obj.get("challenge");
+	String salt = null;
+	String challenge = null;
+	if ((response != null) && (response.length() > ("{salt:\"\",challenge:\"\"").length())) {
+		// the response is json, but we know what's there, so just skip a library
+		// {salt:"",challenge:""}
+		if (response.substring(0,7) == "{salt:\"") {
+			response = response.substring(7);
+			int comma = response.indexOf(",");
+			if (comma > 0) {
+				salt = response.substring(0,comma);
+				if (response.substring(0,12) == ",challenge:\"") {
+					response = response.substring(12);
+					int end = response.indexOf("\"");
+					if (end > 0)
+						challenge = response.substring(0,end);
+				}
+			}
+		}
+	}
+	if ((salt != null) && (challenge != null)) {
 		String request = "subroutine://debug/XFIG.PNP.BACKEND.CALLBACK?values=" + values + "&auth=";
-		
+	
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update(salt + passphrase).getBytes("UTF-8");
 		String saltedPassphrase = new BigInteger(1, md.digest()).toString(16);
 		if (saltedPassphrase.length() > 64)
 			saltedPassphrase = saltedPassphrase.substring(0, 64);
-		
+	
 		md.reset();
 		md.update(challenge + saltedPassphrase).getBytes("UTF-8"));
 		String sessionAuth = new BigInteger(1, md.digest()).toString(16);
 		if (sessionAuth.length() > 64)
 			sessionAuth = sessionAuth.substring(0, 64);
-		
+	
 		request += sessionAuth;
 		request += "\n";
 		// write the request
 		outStream.write(request.getBytes);
 		// read response back
 		response = br.readLine();
-		
-	} catch (Exception e) {
-		logWriter.println(e.printStackTrace);
-	} catch (IOException e1) {
-		logWriter.println(e1.printStackTrace);
-	} catch (java.net.ConnectException e2) {
-		logWriter.println(e2.printStackTrace);
-	}
-} else
-	HttpServletResponse.sendError(400,"bad request"))
+	} else
+		isValid = false;
+
+} catch (Exception e) {
+	isValid = false;
+	logWriter.println(e.printStackTrace);
+} catch (IOException e1) {
+	isValid = false;
+	logWriter.println(e1.printStackTrace);
+} catch (java.net.ConnectException e2) {
+	isValid = false;
+	logWriter.println(e2.printStackTrace);
+}
+if (isValid)
+%>
+<h1>OK</h1>
+<%
+else {
+		HttpServletResponse.sendError(400,"bad request"));
+%>
+<h1>Error</h1>
+<%
+}
+%>

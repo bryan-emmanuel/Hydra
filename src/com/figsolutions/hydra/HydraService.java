@@ -20,6 +20,18 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
+// windows service setup:
+// requires Windows Resource Kit
+// sc create Hydra binPath= "C:\Program Files\Windows Resource Kits\Tools\srvany.exe"
+// edit:
+// HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Hydra
+// add registry key:
+//  Parameters
+// add string values:
+//  AppDirectory - full path to Hydra
+//  Application - full path to java.exe
+//  AppParameters -jar Hydra.jar
+
 public class HydraService {
 
 	private static int sListenPort = 9001;
