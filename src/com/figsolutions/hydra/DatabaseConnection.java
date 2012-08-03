@@ -57,4 +57,8 @@ public class DatabaseConnection {
 	public JSONObject delete(String object, String selection) {
 		return null;
 	}
+	
+	public JSONObject subroutine(String object, String[] values) {
+		return null;
+	}
 }

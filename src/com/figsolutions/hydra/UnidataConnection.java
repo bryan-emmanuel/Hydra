@@ -3,7 +3,7 @@ package com.figsolutions.hydra;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import asjava.uniclientlibs.UniDynArray;
+//import asjava.uniclientlibs.UniDynArray;
 import asjava.uniclientlibs.UniString;
 import asjava.uniobjects.UniCommand;
 import asjava.uniobjects.UniCommandException;
@@ -13,6 +13,8 @@ import asjava.uniobjects.UniSelectList;
 import asjava.uniobjects.UniSelectListException;
 import asjava.uniobjects.UniSession;
 import asjava.uniobjects.UniSessionException;
+import asjava.uniobjects.UniSubroutine;
+import asjava.uniobjects.UniSubroutineException;
 
 public class UnidataConnection extends DatabaseConnection {
 
@@ -192,6 +194,29 @@ public class UnidataConnection extends DatabaseConnection {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		response.put("errors", errors);
+		return response;
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public JSONObject subroutine(String object, String[] values) {
+		JSONObject response = new JSONObject();
+		JSONArray vals = new JSONArray();
+		try {
+			UniSubroutine subr = mSession.subroutine(object, values.length);
+			for (int i = 0, l = values.length; i < l; i++) {
+				subr.setArg(i, values[i]);
+			}
+			subr.call();
+			for (int i = 0, l = values.length; i < l; i++) {
+				vals.add(subr.getArg(i));
+			}
+			response.put("values", vals);
+		} catch (UniSessionException e) {
+			e.printStackTrace();
+		} catch (UniSubroutineException e) {
+			e.printStackTrace();
+		}
 		return response;
 	}
 

@@ -63,7 +63,7 @@ public class ClientThread implements Runnable {
 			JSONObject o = new JSONObject();
 			o.put("salt", mSalt);
 			o.put("challenge", Long.toString(challenge));
-			out.write(o.toString().getBytes());
+			out.write((o.toString() + "\n").getBytes());
 
 			// requests take the form of:
 			// <type>://<database>/<object>?properties=<p1>,<p2>,...
@@ -140,6 +140,8 @@ public class ClientThread implements Runnable {
 									response = databaseConnection.insert(object, params.get("columns").split(","), params.get("values").split(","));
 								} else if (type.equals("delete") && params.containsKey("selection")) {
 									response = databaseConnection.delete(object, params.get("selection"));
+								} else if (type.equals("subroutine") && params.containsKey("arguments") && params.containsKey("values")) {
+									response = databaseConnection.subroutine(object, params.get("values").split(","));
 								} else {
 									throw new Exception("bad request");
 								}
@@ -154,7 +156,7 @@ public class ClientThread implements Runnable {
 						response.put("challenge", Long.toString(challenge));
 
 						System.out.println("response:"+response);
-						out.write(response.toString().getBytes());
+						out.write((response.toString() + "\n").getBytes());
 						line = br.readLine();
 					} else {
 						throw new Exception("authentication failed");
