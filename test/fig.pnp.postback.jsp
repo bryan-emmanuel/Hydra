@@ -1,22 +1,25 @@
 <%@ page import="java.io.*"%>
 <%@ page import="java.net.*"%>
 <%@ page import="java.security.MessageDigest"%>
-//<%@ page import="java.util.HashMap">
+<%@ page import="java.math.BigInteger"%>
+//<%@ page import="java.util.HashMap"%>
 
 // not sure if these are needed
+/*
 <%@ page import="org.xml.sax.InputSource"%>
 <%@ page import="java.util.Map"%>
 <%@ page import="java.util.Date"%>
 <%@ page import="java.net.URLDecoder"%>
 <%@ page import="org.w3c.dom.*"%>
 <%@ page import="javax.xml.parsers.*"%>
+*/
 
 <%
 // set response to value other than 200 for error
-boolean debug_log = false;
+boolean debug_log = true;
 String debug_log_file = "hydraclient.log";
 
-PrintWriter logWriter;
+PrintWriter logWriter = null;
 if (debug_log) {
 	logWriter = new PrintWriter(new FileOutputStream(debug_log_file));
 	// check that the file was opened
@@ -49,85 +52,81 @@ String[] pnpParams = new String[]{"TransNum","StatusCD","Amount","ConvenienceFee
 String values = "";
 for (String s : pnpParams) {
 	if (values != "")
-		values += ","
+		values += ",";
 	values += request.getParameter(s);
 }
-
+String hydraResponse = "";
 Boolean isValid = false;
 // if the request is valid, pass it to Hydra
 
 try {
 	String host = "usci-data1.jungle.usip.edu";
-	String port = "9001";
+	int port = 9001;
 	String passphrase = "figsolutions";
 	
 	Socket socket = new Socket(host, port);
 	InputStream inStream = socket.getInputStream();
 	OutputStream outStream = socket.getOutputStream();
 	
-	BufferedReader br = new BufferedReader(new InputStreamReader(in));
-	String response = br.readLine();
+	BufferedReader br = new BufferedReader(new InputStreamReader(inStream));
+	hydraResponse = br.readLine();
 	String salt = null;
 	String challenge = null;
-	if ((response != null) && (response.length() > ("{salt:\"\",challenge:\"\"").length())) {
+	if ((hydraResponse != null) && (hydraResponse.length() > ("{salt:\"\",challenge:\"\"").length())) {
 		// the response is json, but we know what's there, so just skip a library
 		// {salt:"",challenge:""}
-		if (response.substring(0,7) == "{salt:\"") {
-			response = response.substring(7);
-			int comma = response.indexOf(",");
+		if (hydraResponse.substring(0,7) == "{salt:\"") {
+			hydraResponse = hydraResponse.substring(7);
+			int comma = hydraResponse.indexOf(",");
 			if (comma > 0) {
-				salt = response.substring(0,comma);
-				if (response.substring(0,12) == ",challenge:\"") {
-					response = response.substring(12);
-					int end = response.indexOf("\"");
+				salt = hydraResponse.substring(0,comma);
+				if (hydraResponse.substring(0,12) == ",challenge:\"") {
+					hydraResponse = hydraResponse.substring(12);
+					int end = hydraResponse.indexOf("\"");
 					if (end > 0)
-						challenge = response.substring(0,end);
+						challenge = hydraResponse.substring(0,end);
 				}
 			}
 		}
 	}
 	if ((salt != null) && (challenge != null)) {
-		String request = "subroutine://debug/XFIG.PNP.BACKEND.CALLBACK?values=" + values + "&auth=";
+		String hydraRequest = "subroutine://debug/XFIG.PNP.BACKEND.CALLBACK?values=" + values + "&auth=";
 	
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
-		md.update(salt + passphrase).getBytes("UTF-8");
+		md.update((salt + passphrase).getBytes("UTF-8"));
 		String saltedPassphrase = new BigInteger(1, md.digest()).toString(16);
 		if (saltedPassphrase.length() > 64)
 			saltedPassphrase = saltedPassphrase.substring(0, 64);
 	
 		md.reset();
-		md.update(challenge + saltedPassphrase).getBytes("UTF-8"));
+		md.update((challenge + saltedPassphrase).getBytes("UTF-8"));
 		String sessionAuth = new BigInteger(1, md.digest()).toString(16);
 		if (sessionAuth.length() > 64)
 			sessionAuth = sessionAuth.substring(0, 64);
 	
-		request += sessionAuth;
-		request += "\n";
+		hydraRequest += sessionAuth;
+		hydraRequest += "\n";
 		// write the request
-		outStream.write(request.getBytes);
+		outStream.write(hydraRequest.getBytes());
 		// read response back
-		response = br.readLine();
+		hydraResponse = br.readLine();
 	} else
 		isValid = false;
 
 } catch (Exception e) {
 	isValid = false;
-	logWriter.println(e.printStackTrace);
-} catch (IOException e1) {
-	isValid = false;
-	logWriter.println(e1.printStackTrace);
-} catch (java.net.ConnectException e2) {
-	isValid = false;
-	logWriter.println(e2.printStackTrace);
+	if (logWriter != null)
+		e.printStackTrace(logWriter);
 }
-if (isValid)
+if (isValid) {
 %>
 <h1>OK</h1>
 <%
-else {
-		HttpServletResponse.sendError(400,"bad request"));
+} else {
+		response.sendError(400,"bad request");
 %>
 <h1>Error</h1>
+<p><%=hydraResponse%></p>
 <%
 }
 %>

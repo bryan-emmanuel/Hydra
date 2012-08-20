@@ -39,11 +39,10 @@ public class ClientThread implements Runnable {
 			out = mSocket.getOutputStream();
 			in = mSocket.getInputStream();
 		} catch (IOException e) {
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		}
-		if ((out == null) || (in == null)) {
+		if ((out == null) || (in == null))
 			return;
-		}
 
 		long challenge = System.currentTimeMillis();
 
@@ -55,9 +54,8 @@ public class ClientThread implements Runnable {
 			MessageDigest md = MessageDigest.getInstance("SHA-256");
 			md.update((mSalt + mPassphrase).getBytes("UTF-8"));
 			String saltedPassphrase = new BigInteger(1, md.digest()).toString(16);
-			if (saltedPassphrase.length() > 64) {
+			if (saltedPassphrase.length() > 64)
 				saltedPassphrase = saltedPassphrase.substring(0, 64);
-			}
 
 			// send to the salt and challenge for authenticating requests
 			JSONObject o = new JSONObject();
@@ -82,13 +80,11 @@ public class ClientThread implements Runnable {
 					database = "";
 				} else {
 					object = request.getPath();
-					if ((object != null) && (object.length() > 0)) {
+					if ((object != null) && (object.length() > 0))
 						object = object.substring(1);
-					}
 					rawQuery = request.getQuery();
-					if ((rawQuery != null) && (rawQuery.length() > 0)) {
+					if ((rawQuery != null) && (rawQuery.length() > 0))
 						rawQuery = rawQuery.substring(1);
-					}
 				}
 				System.out.println("type:"+type);
 				System.out.println("database:"+database);
@@ -114,9 +110,8 @@ public class ClientThread implements Runnable {
 					md.reset();
 					md.update((Long.toString(challenge) + saltedPassphrase).getBytes("UTF-8"));
 					String passphrase = new BigInteger(1, md.digest()).toString(16);
-					if (passphrase.length() > 64) {
+					if (passphrase.length() > 64)
 						passphrase = passphrase.substring(0, 64);
-					}
 
 					if (auth.equals(passphrase)) {
 
@@ -158,12 +153,10 @@ public class ClientThread implements Runnable {
 						System.out.println("response:"+response);
 						out.write((response.toString() + "\n").getBytes());
 						line = br.readLine();
-					} else {
+					} else
 						throw new Exception("authentication failed");
-					}
-				} else {
+				} else
 					throw new Exception("authentication failed");
-				}
 			}
 		} catch (Exception e) {
 			JSONObject response = new JSONObject();
@@ -173,18 +166,17 @@ public class ClientThread implements Runnable {
 			try {
 				out.write(response.toString().getBytes());
 			} catch (IOException e1) {
-				e1.printStackTrace();
+				HydraService.writeLog(e1.getMessage());
 			}
 			e.printStackTrace();
 		} finally {
 			HydraService.removeClientThread(mClientIndex);
-			if (databaseConnection != null) {
+			if (databaseConnection != null)
 				databaseConnection.release();
-			}
 			try {
 				mSocket.close();
 			} catch (IOException e) {
-				e.printStackTrace();
+				HydraService.writeLog(e.getMessage());
 			}
 		}
 	}

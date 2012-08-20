@@ -45,9 +45,8 @@ public class UnidataConnection extends DatabaseConnection {
 	@Override
 	public void disconnect() throws Exception {
 		super.disconnect();
-		if (mSession != null) {
+		if (mSession != null)
 			mSession.disconnect();
-		}
 	}
 
 	@SuppressWarnings("unchecked")
@@ -62,10 +61,10 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", uCommand.response());
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} catch (UniCommandException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		}
 		response.put("errors", errors);
 		return response;
@@ -101,23 +100,23 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} catch (UniCommandException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} catch (UniFileException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} catch (UniSelectListException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (uFile != null) {
 				try {
 					uFile.close();
 				} catch (UniFileException e) {
 					errors.add(e.getMessage());
-					e.printStackTrace();
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -144,11 +143,10 @@ public class UnidataConnection extends DatabaseConnection {
 		try {
 			JSONArray result = new JSONArray();
 			UniCommand uCommand = mSession.command();
-			if (selection == null) {
+			if (selection == null)
 				uCommand.setCommand(String.format(SIMPLE_QUERY_FORMAT, object).toString());
-			} else {
+			else
 				uCommand.setCommand(String.format(SELECTION_QUERY_FORMAT, object, selection).toString());
-			}
 			UniSelectList uSelect = mSession.selectList(0);
 			uCommand.exec();
 			uFile = mSession.openFile(object);
@@ -164,23 +162,23 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} catch (UniCommandException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} catch (UniFileException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} catch (UniSelectListException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (uFile != null) {
 				try {
 					uFile.close();
 				} catch (UniFileException e) {
 					errors.add(e.getMessage());
-					e.printStackTrace();
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -204,18 +202,16 @@ public class UnidataConnection extends DatabaseConnection {
 		JSONArray vals = new JSONArray();
 		try {
 			UniSubroutine subr = mSession.subroutine(object, values.length);
-			for (int i = 0, l = values.length; i < l; i++) {
+			for (int i = 0, l = values.length; i < l; i++)
 				subr.setArg(i, values[i]);
-			}
 			subr.call();
-			for (int i = 0, l = values.length; i < l; i++) {
+			for (int i = 0, l = values.length; i < l; i++)
 				vals.add(subr.getArg(i));
-			}
 			response.put("values", vals);
 		} catch (UniSessionException e) {
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} catch (UniSubroutineException e) {
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		}
 		return response;
 	}

@@ -14,6 +14,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
+import java.util.logging.FileHandler;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -34,37 +37,57 @@ import org.json.simple.parser.ParseException;
 
 public class HydraService {
 
-	private static int sListenPort = 9001;
-	private static int sClientThreadSize = 1;
 	private static AcceptThread sAcceptThread;
 	private static final String sPassphrase = "passphrase";
 	private static final String sDatabases = "databases";
 	private static final String sAlias = "alias";
 	private static final String sType = "type";
 	private static final String sDatabase = "database";
-	private static final String sHostName = "hostname";
-	private static final String sHostPort = "hostport";
+	private static final String sName = "name";
+	private static final String sPort = "port";
 	private static final String sUsername = "username";
 	private static final String sPassword = "password";
 	private static final String sConnections = "connections";
 	private static String sConnectionPassphrase;
 	private static String sSalt;
+	private static final String sLogFile = "hydra.log";
+	protected static FileHandler sLogFileHandler;
+	protected static Logger sLogger;
 	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
 	private static HashMap<String, ArrayList<DatabaseConnection>> sDatabaseConnections = new HashMap<String, ArrayList<DatabaseConnection>>();
 
 	public static void main(String[] args) {
+
+		try {
+			sLogFileHandler = new FileHandler(sLogFile);
+		} catch (SecurityException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		if (sLogFileHandler != null) {
+			sLogger = Logger.getLogger("Hydra");
+			sLogger.addHandler(sLogFileHandler);
+			SimpleFormatter sf = new SimpleFormatter();
+			sLogFileHandler.setFormatter(sf);
+			writeLog("Hydra starting");
+		}
 
 		File f = new File("hydra.conf");
 		if (!f.exists()) {
 			try {
 				f.createNewFile();
 			} catch (IOException e) {
-				e.printStackTrace();
+				writeLog(e.getMessage());
 			}
 		}
 
+		int listenPort = 9001;
+		
 		FileInputStream fis;
 		try {
+			writeLog("parsing conf file");
 			fis = new FileInputStream("hydra.conf");
 			InputStreamReader isr = new InputStreamReader(fis, "UTF-8");
 			char[] buffer = new char[1024];
@@ -76,6 +99,7 @@ public class HydraService {
 			JSONParser parser = new JSONParser();
 			JSONObject conf = (JSONObject) parser.parse(content.toString());
 			sConnectionPassphrase = (String) conf.get(sPassphrase);
+			listenPort = Integer.parseInt((String) conf.get(sPort));
 			JSONArray databases = (JSONArray) conf.get(sDatabases);
 			for (int i = 0, l = databases.size(); i < l; i++) {
 				JSONObject databaseIn = (JSONObject) databases.get(i);
@@ -83,8 +107,8 @@ public class HydraService {
 				HashMap<String, String> database = new HashMap<String, String>();
 				database.put(sType, (String) databaseIn.get(sType));
 				database.put(sDatabase, (String) databaseIn.get(sDatabase));
-				database.put(sHostName, (String) databaseIn.get(sHostName));
-				database.put(sHostPort, (String) databaseIn.get(sHostPort));
+				database.put(sName, (String) databaseIn.get(sName));
+				database.put(sPort, (String) databaseIn.get(sPort));
 				database.put(sUsername, (String) databaseIn.get(sUsername));
 				database.put(sPassword, (String) databaseIn.get(sPassword));
 				database.put(sConnections, (String) databaseIn.get(sConnections));
@@ -92,13 +116,13 @@ public class HydraService {
 				sDatabaseConnections.put(alias, new ArrayList<DatabaseConnection>());
 			}
 		} catch (FileNotFoundException e1) {
-			e1.printStackTrace();
+			writeLog(e1.getMessage());
 		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
+			writeLog(e.getMessage());
 		} catch (ParseException e) {
-			e.printStackTrace();
+			writeLog(e.getMessage());
 		} catch (IOException e) {
-			e.printStackTrace();
+			writeLog(e.getMessage());
 		}
 		
 		// generate a salt
@@ -131,7 +155,8 @@ public class HydraService {
 		//		}
 
 		// listen for connections
-		sAcceptThread = new AcceptThread(sListenPort, sClientThreadSize, sConnectionPassphrase, sSalt);
+		int clientThreadSize = 1;
+		sAcceptThread = new AcceptThread(listenPort, clientThreadSize, sConnectionPassphrase, sSalt);
 		Thread acceptThread = new Thread(sAcceptThread);
 		acceptThread.start();
 		try {
@@ -141,13 +166,20 @@ public class HydraService {
 		}
 	}
 
-	public static int getListenPort() {
-		return sListenPort;
+	protected static void writeLog(String message) {
+		if ((sLogFileHandler != null) && (sLogger != null)) {
+			sLogger.info(message);
+		} else
+			System.out.println(message);
 	}
 
-	public static void setListenPort(int listenPort) {
-		HydraService.sListenPort = listenPort;
-	}
+//	public static int getListenPort() {
+//		return sListenPort;
+//	}
+//
+//	public static void setListenPort(int listenPort) {
+//		HydraService.sListenPort = listenPort;
+//	}
 
 	public synchronized static DatabaseConnection getDatabaseConnection(String database) throws Exception {
 		// return an existing database connection, or spawn a new one if the pool isn't full
@@ -169,38 +201,30 @@ public class HydraService {
 			HashMap<String, String> databaseSettings = sDatabaseSettings.get(database);
 			if (connections.size() < Integer.parseInt(databaseSettings.get(sConnections))) {
 				String type = databaseSettings.get(sType);
-				if (type.equals("unidata")) {
-					databaseConnection = new UnidataConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
-					databaseConnection.connect();
-				} else if (type.equals("mssql")) {
-					databaseConnection = new MSSQLConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
-					databaseConnection.connect();
-				} else if (type.equals("oracle")) {
-					databaseConnection = new OracleConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
-					databaseConnection.connect();
-				} else if (type.equals("mysql")) {
-					databaseConnection = new MySQLConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
-					databaseConnection.connect();
-				} else if (type.equals("postresql")) {
-					databaseConnection = new PostgreSQLConnection(databaseSettings.get(sHostName), databaseSettings.get(sHostPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword));
-					databaseConnection.connect();
-				} else {
+				if (type.equals("unidata"))
+					(databaseConnection = new UnidataConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+				else if (type.equals("mssql"))
+					(databaseConnection = new MSSQLConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+				else if (type.equals("oracle"))
+					(databaseConnection = new OracleConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+				else if (type.equals("mysql"))
+					(databaseConnection = new MySQLConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+				else if (type.equals("postresql"))
+					(databaseConnection = new PostgreSQLConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+				else
 					throw new Exception("unknown type:" + type);
-				}
 				connections.add(databaseConnection);
 				return databaseConnection;
 			}
-		} else {
+		} else
 			throw new Exception("Database " + database + " not defined.");
-		}
 		return databaseConnection;
 	}
 
 	public synchronized static void removeClientThread(int index) {
 		int clients = sAcceptThread.getClientThreads();
-		if (clients > index) {
+		if (clients > index)
 			sAcceptThread.removeClientThread(index);
-		}
 		// maintain atleast as many connections/database as client threads
 		Set<String> keys = sDatabaseConnections.keySet();
 		Iterator<String> iter = keys.iterator();
@@ -213,11 +237,10 @@ public class HydraService {
 					try {
 						connection.disconnect();
 					} catch (Exception e) {
-						e.printStackTrace();
+						writeLog(e.getMessage());
 					}
 					// remove the connection and back up the index
-					connections.remove(i);
-					i--;
+					connections.remove(i--);
 				}
 			}
 		}
@@ -230,9 +253,8 @@ public class HydraService {
 		Set<String> databases = sDatabaseSettings.keySet();
 		JSONArray arr = new JSONArray();
 		Iterator<String> iter = databases.iterator();
-		while (iter.hasNext()) {
+		while (iter.hasNext())
 			arr.add(iter.next());
-		}
 		response.put("result", arr);
 		return response;
 	}
@@ -245,8 +267,8 @@ public class HydraService {
 			JSONObject props = new JSONObject();
 			props.put(sAlias, database);
 			props.put(sDatabase, databaseSettings.get(sDatabase));
-			props.put(sHostName, databaseSettings.get(sHostName));
-			props.put(sHostPort, databaseSettings.get(sHostPort));
+			props.put(sName, databaseSettings.get(sName));
+			props.put(sPort, databaseSettings.get(sPort));
 			response.put("result", props);
 		}
 		return response;

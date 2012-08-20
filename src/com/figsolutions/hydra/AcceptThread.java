@@ -8,7 +8,7 @@ import java.util.ArrayList;
 public class AcceptThread implements Runnable {
 	
 	private int mListenPort = 9001;
-	private int mClientThreadSize = 0;
+	private int mClientThreadSize = 1;
 	private ArrayList<Thread> mClientThreads = new ArrayList<Thread>();
 	private String mPassphrase;
 	private String mSalt;
@@ -54,16 +54,16 @@ public class AcceptThread implements Runnable {
 						clientThread.join();
 					}
 				} catch (IOException e) {
-					e.printStackTrace();
+					HydraService.writeLog(e.getMessage());
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 			
 			try {
 				socket.close();
 			} catch (IOException e) {
-				e.printStackTrace();
+				HydraService.writeLog(e.getMessage());
 			}
 		}
 	}

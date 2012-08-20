@@ -20,9 +20,8 @@ public class DatabaseConnection {
 	}
 	
 	public boolean connect() throws Exception {
-		if (mLock) {
+		if (mLock)
 			throw new Exception("connection locked");
-		}
 		mLock = true;
 		return mLock;
 	}

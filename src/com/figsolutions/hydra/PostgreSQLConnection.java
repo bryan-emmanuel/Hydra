@@ -41,9 +41,8 @@ public class PostgreSQLConnection extends DatabaseConnection {
 	@Override
 	public void disconnect() throws Exception {
 		super.disconnect();
-		if (mConnection != null) {
+		if (mConnection != null)
 			mConnection.close();
-		}
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -59,9 +58,8 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			JSONArray result = new JSONArray();
 			ResultSetMetaData rsmd = rs.getMetaData();
 			String[] columnsArr = new String[rsmd.getColumnCount()];
-			for (int c = 0, l = columnsArr.length; c < l; c++) {
+			for (int c = 0, l = columnsArr.length; c < l; c++)
 				columnsArr[c] = rsmd.getColumnName(c);
-			}
 			while (rs.next()) {
 				for (String column : columnsArr) {
 					JSONObject col = new JSONObject();
@@ -72,7 +70,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -80,14 +78,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						e.printStackTrace();
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					e.printStackTrace();
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -105,18 +103,16 @@ public class PostgreSQLConnection extends DatabaseConnection {
 		try {
 			StringBuilder sb = new StringBuilder();
 			for (int i = 0, l = columns.length; i < l; i++) {
-				if (i > 0) {
+				if (i > 0)
 					sb.append(",");
-				}
 				sb.append(columns[i].replaceAll("\\.", "_"));
 			}
 			String columnsStr = sb.toString();
 			s = mConnection.createStatement();
-			if (selection != null) {
+			if (selection != null)
 				rs = s.executeQuery(String.format(SELECTION_QUERY_FORMAT, columnsStr, object, selection).toString());
-			} else {
+			else
 				rs = s.executeQuery(String.format(SIMPLE_QUERY_FORMAT, columnsStr, object).toString());
-			}
 			JSONArray result = new JSONArray();
 			while (rs.next()) {
 				for (String column : columns) {
@@ -128,7 +124,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -136,14 +132,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						e.printStackTrace();
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					e.printStackTrace();
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -161,17 +157,15 @@ public class PostgreSQLConnection extends DatabaseConnection {
 		try {
 			StringBuilder sb = new StringBuilder();
 			for (int i = 0, l = columns.length; i < l; i++) {
-				if (i > 0) {
+				if (i > 0)
 					sb.append(",");
-				}
 				sb.append(columns[i].replaceAll("\\.", "_"));
 			}
 			String columnsStr = sb.toString();
 			sb = new StringBuilder();
 			for (int i = 0, l = values.length; i < l; i++) {
-				if (i > 0) {
+				if (i > 0)
 					sb.append(",");
-				}
 				sb.append(values[i]);
 			}
 			String valuesStr = sb.toString();
@@ -180,9 +174,8 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			JSONArray result = new JSONArray();
 			ResultSetMetaData rsmd = rs.getMetaData();
 			String[] columnsArr = new String[rsmd.getColumnCount()];
-			for (int c = 0, l = columnsArr.length; c < l; c++) {
+			for (int c = 0, l = columnsArr.length; c < l; c++)
 				columnsArr[c] = rsmd.getColumnName(c);
-			}
 			while (rs.next()) {
 				for (String column : columnsArr) {
 					JSONObject col = new JSONObject();
@@ -193,7 +186,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -201,14 +194,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						e.printStackTrace();
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					e.printStackTrace();
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -226,9 +219,8 @@ public class PostgreSQLConnection extends DatabaseConnection {
 		try {
 			StringBuilder sb = new StringBuilder();
 			for (int i = 0, l = columns.length; i < l; i++) {
-				if (i > 0) {
+				if (i > 0)
 					sb.append(",");
-				}
 				sb.append(columns[i].replaceAll("\\.", "_"));
 				sb.append("=");
 				sb.append(values[i]);
@@ -238,9 +230,8 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			JSONArray result = new JSONArray();
 			ResultSetMetaData rsmd = rs.getMetaData();
 			String[] columnsArr = new String[rsmd.getColumnCount()];
-			for (int c = 0, l = columnsArr.length; c < l; c++) {
+			for (int c = 0, l = columnsArr.length; c < l; c++)
 				columnsArr[c] = rsmd.getColumnName(c);
-			}
 			while (rs.next()) {
 				for (String column : columnsArr) {
 					JSONObject col = new JSONObject();
@@ -251,7 +242,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -259,14 +250,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						e.printStackTrace();
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					e.printStackTrace();
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -287,9 +278,8 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			JSONArray result = new JSONArray();
 			ResultSetMetaData rsmd = rs.getMetaData();
 			String[] columnsArr = new String[rsmd.getColumnCount()];
-			for (int c = 0, l = columnsArr.length; c < l; c++) {
+			for (int c = 0, l = columnsArr.length; c < l; c++)
 				columnsArr[c] = rsmd.getColumnName(c);
-			}
 			while (rs.next()) {
 				for (String column : columnsArr) {
 					JSONObject col = new JSONObject();
@@ -300,7 +290,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			e.printStackTrace();
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -308,14 +298,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						e.printStackTrace();
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					e.printStackTrace();
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
