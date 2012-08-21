@@ -70,6 +70,11 @@ public class ClientThread implements Runnable {
 			String line = br.readLine();
 			while ((line != null) && (line.length() > 0)) {
 				System.out.println("read:"+line);
+				// get the request before auth for adding to the authentication
+				int authIdx = line.indexOf("auth");
+				String requestAuth = "";
+				if (authIdx != -1)
+					requestAuth = line.substring(0, --authIdx);
 				Uri request = new Uri(line);
 				String type = request.getScheme();
 				String database = request.getHost();
@@ -108,7 +113,7 @@ public class ClientThread implements Runnable {
 
 					// apply the challenge
 					md.reset();
-					md.update((Long.toString(challenge) + saltedPassphrase).getBytes("UTF-8"));
+					md.update((requestAuth + Long.toString(challenge) + saltedPassphrase).getBytes("UTF-8"));
 					String passphrase = new BigInteger(1, md.digest()).toString(16);
 					if (passphrase.length() > 64)
 						passphrase = passphrase.substring(0, 64);
@@ -135,7 +140,7 @@ public class ClientThread implements Runnable {
 									response = databaseConnection.insert(object, params.get("columns").split(","), params.get("values").split(","));
 								} else if (type.equals("delete") && params.containsKey("selection")) {
 									response = databaseConnection.delete(object, params.get("selection"));
-								} else if (type.equals("subroutine") && params.containsKey("arguments") && params.containsKey("values")) {
+								} else if (type.equals("subroutine") && params.containsKey("values")) {
 									response = databaseConnection.subroutine(object, params.get("values").split(","));
 								} else {
 									throw new Exception("bad request");

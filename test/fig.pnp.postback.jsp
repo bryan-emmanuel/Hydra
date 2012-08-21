@@ -90,7 +90,9 @@ try {
 		}
 	}
 	if ((salt != null) && (challenge != null)) {
-		String hydraRequest = "subroutine://debug/XFIG.PNP.BACKEND.CALLBACK?values=" + values + "&auth=";
+		String hydraRequest = "subroutine://debug/XFIG.PNP.BACKEND.CALLBACK?values=" + values;
+		String requestAuth = hydraRequest;
+		hydraRequest += "&auth=";
 	
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update((salt + passphrase).getBytes("UTF-8"));
@@ -99,7 +101,7 @@ try {
 			saltedPassphrase = saltedPassphrase.substring(0, 64);
 	
 		md.reset();
-		md.update((challenge + saltedPassphrase).getBytes("UTF-8"));
+		md.update((requestAuth + challenge + saltedPassphrase).getBytes("UTF-8"));
 		String sessionAuth = new BigInteger(1, md.digest()).toString(16);
 		if (sessionAuth.length() > 64)
 			sessionAuth = sessionAuth.substring(0, 64);

@@ -9,6 +9,9 @@ public class DatabaseConnection {
 	protected String mAccountPath;
 	protected String mUsername;
 	protected String mPassword;
+	protected String mDASU;
+	protected String mDASP;
+	protected String mSQLENVINIT;
 	protected boolean mLock;
 	
 	public DatabaseConnection(String hostName, String hostPort, String accountPath, String username, String password) {
@@ -17,6 +20,17 @@ public class DatabaseConnection {
 		mAccountPath = accountPath;
 		mUsername = username;
 		mPassword = password;
+	}
+
+	public DatabaseConnection(String hostName, String hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
+		mHostName = hostName;
+		mHostPort = hostPort;
+		mAccountPath = accountPath;
+		mUsername = username;
+		mPassword = password;
+		mDASU = dasu;
+		mDASP = dasp;
+		mSQLENVINIT	= sqlenvinit;
 	}
 	
 	public boolean connect() throws Exception {

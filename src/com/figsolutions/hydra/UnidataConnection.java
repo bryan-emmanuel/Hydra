@@ -9,6 +9,7 @@ import asjava.uniobjects.UniCommand;
 import asjava.uniobjects.UniCommandException;
 import asjava.uniobjects.UniFile;
 import asjava.uniobjects.UniFileException;
+import asjava.uniobjects.UniObjectsTokens;
 import asjava.uniobjects.UniSelectList;
 import asjava.uniobjects.UniSelectListException;
 import asjava.uniobjects.UniSession;
@@ -22,8 +23,8 @@ public class UnidataConnection extends DatabaseConnection {
 	private static final String SIMPLE_QUERY_FORMAT = "SELECT %s";
 	private static final String SELECTION_QUERY_FORMAT = "SELECT %s WITH %s";
 
-	public UnidataConnection(String hostName, String hostPort, String accountPath, String username, String password) {
-		super(hostName, hostPort, accountPath, username, password);
+	public UnidataConnection(String hostName, String hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
+		super(hostName, hostPort, accountPath, username, password, dasu, dasp, sqlenvinit);
 	}
 
 	@Override
@@ -38,6 +39,20 @@ public class UnidataConnection extends DatabaseConnection {
 			mSession.setPassword(mPassword);
 			mSession.setConnectionString("udcs");
 			mSession.connect();
+			// need to initialize MIO
+			String hydraInitMio = "HYDRA.INIT.MIO";
+			UniFile uFile = mSession.open("BP");
+			String code = "X.DASU = SETENV('DASU','" + mDASU + "')";
+			code += UniObjectsTokens.FM_CHAR + "X.DASP = SETENV('DASP','" + mDASP + "')";
+			uFile.write(hydraInitMio, code);
+			UniCommand uCommand = mSession.command("BASIC BP " + hydraInitMio);
+			uCommand.exec();
+			uCommand.setCommand("CATALOG BP " + hydraInitMio + " DIRECT FORCE");
+			uCommand.exec();
+			uCommand.setCommand(hydraInitMio);
+			uCommand.exec();
+			uCommand.setCommand("SQLENVINIT DMI:" + mSQLENVINIT);
+			uCommand.exec();
 		}
 		return mLock;
 	}
@@ -201,16 +216,22 @@ public class UnidataConnection extends DatabaseConnection {
 		JSONObject response = new JSONObject();
 		JSONArray vals = new JSONArray();
 		try {
+			System.out.println("subroutine:"+object);
+			System.out.println("arguments:"+values.length);
+			System.out.println("session isActive:" + mSession.isActive());
 			UniSubroutine subr = mSession.subroutine(object, values.length);
 			for (int i = 0, l = values.length; i < l; i++)
 				subr.setArg(i, values[i]);
+			System.out.println("call");
 			subr.call();
 			for (int i = 0, l = values.length; i < l; i++)
 				vals.add(subr.getArg(i));
-			response.put("values", vals);
+			response.put("result", vals);
 		} catch (UniSessionException e) {
+			e.printStackTrace();
 			HydraService.writeLog(e.getMessage());
 		} catch (UniSubroutineException e) {
+			e.printStackTrace();
 			HydraService.writeLog(e.getMessage());
 		}
 		return response;

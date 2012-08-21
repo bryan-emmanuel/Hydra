@@ -25,7 +25,7 @@ import json
 import hashlib
 
 def main():
-	host = 'localhost'
+	host = 'webaddebug.usciences.edu'
 	port = 9001
 	passphrase = 'figsolutions'
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -56,12 +56,13 @@ def main():
 				if (params != ''):
 					req += '?' + params
 		# add auth
-		auth = 'auth=' + hashlib.sha256(challenge + hashlib.sha256(salt + passphrase).hexdigest()[:64]).hexdigest()[:64]
+		auth = 'auth=' + hashlib.sha256(req + challenge + hashlib.sha256(salt + passphrase).hexdigest()[:64]).hexdigest()[:64]
 		if (params == ''):
 			req += '?'
 		else:
 			req += '&'
 		req += auth
+		print 'send: ' + req
 		s.send(req + '\n')
 		# read response
 		errors = ''

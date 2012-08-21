@@ -43,11 +43,14 @@ public class HydraService {
 	private static final String sAlias = "alias";
 	private static final String sType = "type";
 	private static final String sDatabase = "database";
-	private static final String sName = "name";
+	private static final String sHost = "host";
 	private static final String sPort = "port";
 	private static final String sUsername = "username";
 	private static final String sPassword = "password";
 	private static final String sConnections = "connections";
+	private static final String sDASU = "DASU";
+	private static final String sDASP = "DASP";
+	private static final String sSQLENVINIT = "SQLENVINIT";
 	private static String sConnectionPassphrase;
 	private static String sSalt;
 	private static final String sLogFile = "hydra.log";
@@ -107,11 +110,14 @@ public class HydraService {
 				HashMap<String, String> database = new HashMap<String, String>();
 				database.put(sType, (String) databaseIn.get(sType));
 				database.put(sDatabase, (String) databaseIn.get(sDatabase));
-				database.put(sName, (String) databaseIn.get(sName));
+				database.put(sHost, (String) databaseIn.get(sHost));
 				database.put(sPort, (String) databaseIn.get(sPort));
 				database.put(sUsername, (String) databaseIn.get(sUsername));
 				database.put(sPassword, (String) databaseIn.get(sPassword));
 				database.put(sConnections, (String) databaseIn.get(sConnections));
+				database.put(sDASU, (String) databaseIn.get(sDASU));
+				database.put(sDASP, (String) databaseIn.get(sDASP));
+				database.put(sSQLENVINIT, (String) databaseIn.get(sSQLENVINIT));
 				sDatabaseSettings.put(alias, database);
 				sDatabaseConnections.put(alias, new ArrayList<DatabaseConnection>());
 			}
@@ -202,15 +208,15 @@ public class HydraService {
 			if (connections.size() < Integer.parseInt(databaseSettings.get(sConnections))) {
 				String type = databaseSettings.get(sType);
 				if (type.equals("unidata"))
-					(databaseConnection = new UnidataConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new UnidataConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), databaseSettings.get(sDASU), databaseSettings.get(sDASP), databaseSettings.get(sSQLENVINIT))).connect();
 				else if (type.equals("mssql"))
-					(databaseConnection = new MSSQLConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new MSSQLConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else if (type.equals("oracle"))
-					(databaseConnection = new OracleConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new OracleConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else if (type.equals("mysql"))
-					(databaseConnection = new MySQLConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new MySQLConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else if (type.equals("postresql"))
-					(databaseConnection = new PostgreSQLConnection(databaseSettings.get(sName), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new PostgreSQLConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else
 					throw new Exception("unknown type:" + type);
 				connections.add(databaseConnection);
@@ -267,7 +273,7 @@ public class HydraService {
 			JSONObject props = new JSONObject();
 			props.put(sAlias, database);
 			props.put(sDatabase, databaseSettings.get(sDatabase));
-			props.put(sName, databaseSettings.get(sName));
+			props.put(sHost, databaseSettings.get(sHost));
 			props.put(sPort, databaseSettings.get(sPort));
 			response.put("result", props);
 		}
