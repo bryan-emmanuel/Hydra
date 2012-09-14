@@ -5,10 +5,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.math.BigInteger;
 import java.net.Socket;
 import java.net.URLDecoder;
-import java.security.MessageDigest;
 import java.util.HashMap;
 
 import org.json.simple.JSONArray;
@@ -51,9 +49,7 @@ public class ClientThread implements Runnable {
 		try {
 
 			// salt the password
-			MessageDigest md = MessageDigest.getInstance("SHA-256");
-			md.update((mSalt + mPassphrase).getBytes("UTF-8"));
-			String saltedPassphrase = new BigInteger(1, md.digest()).toString(16);
+			String saltedPassphrase = HydraService.getHashString(mSalt + mPassphrase);
 			if (saltedPassphrase.length() > 64)
 				saltedPassphrase = saltedPassphrase.substring(0, 64);
 
@@ -69,12 +65,13 @@ public class ClientThread implements Runnable {
 			BufferedReader br = new BufferedReader(new InputStreamReader(in));
 			String line = br.readLine();
 			while ((line != null) && (line.length() > 0)) {
-				System.out.println("read:"+line);
+				HydraService.writeLog("read:"+line);
 				// get the request before auth for adding to the authentication
 				int authIdx = line.indexOf("auth");
 				String requestAuth = "";
 				if (authIdx != -1)
 					requestAuth = line.substring(0, --authIdx);
+				HydraService.writeLog("requestAuth:"+requestAuth);
 				Uri request = new Uri(line);
 				String type = request.getScheme();
 				String database = request.getHost();
@@ -91,10 +88,10 @@ public class ClientThread implements Runnable {
 					if ((rawQuery != null) && (rawQuery.length() > 0))
 						rawQuery = rawQuery.substring(1);
 				}
-				System.out.println("type:"+type);
-				System.out.println("database:"+database);
-				System.out.println("object:"+object);
-				System.out.println("rawQuery:"+rawQuery);
+				HydraService.writeLog("type:"+type);
+				HydraService.writeLog("database:"+database);
+				HydraService.writeLog("object:"+object);
+				HydraService.writeLog("rawQuery:"+rawQuery);
 				String[] rawParams = rawQuery.split("&");
 				HashMap<String, String> params = new HashMap<String, String>();
 				for (String param : rawParams) {
@@ -102,7 +99,7 @@ public class ClientThread implements Runnable {
 					if (pair.length == 2) {
 						String key = URLDecoder.decode(pair[0], "UTF-8");
 						String value = URLDecoder.decode(pair[1], "UTF-8").replaceAll("(\\r|\\n)", "");
-						System.out.println("param:"+key+"="+value);
+						HydraService.writeLog("param:"+key+"="+value);
 						params.put(key, value);
 					}
 				}
@@ -112,12 +109,9 @@ public class ClientThread implements Runnable {
 					String auth = params.get("auth");
 
 					// apply the challenge
-					md.reset();
-					md.update((requestAuth + Long.toString(challenge) + saltedPassphrase).getBytes("UTF-8"));
-					String passphrase = new BigInteger(1, md.digest()).toString(16);
+					String passphrase = HydraService.getHashString(requestAuth + Long.toString(challenge) + saltedPassphrase);
 					if (passphrase.length() > 64)
 						passphrase = passphrase.substring(0, 64);
-
 					if (auth.equals(passphrase)) {
 
 						JSONObject response;
@@ -155,7 +149,7 @@ public class ClientThread implements Runnable {
 						challenge = System.currentTimeMillis();
 						response.put("challenge", Long.toString(challenge));
 
-						System.out.println("response:"+response);
+						HydraService.writeLog("response:"+response);
 						out.write((response.toString() + "\n").getBytes());
 						line = br.readLine();
 					} else

@@ -112,6 +112,7 @@ try {
 		outStream.write(hydraRequest.getBytes());
 		// read response back
 		hydraResponse = br.readLine();
+		// the response is in JSON
 	} else
 		isValid = false;
 

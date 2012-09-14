@@ -173,9 +173,9 @@ public class HydraService {
 	}
 
 	protected static void writeLog(String message) {
-		if ((sLogFileHandler != null) && (sLogger != null)) {
+		if ((sLogFileHandler != null) && (sLogger != null))
 			sLogger.info(message);
-		} else
+		else
 			System.out.println(message);
 	}
 
@@ -275,8 +275,23 @@ public class HydraService {
 			props.put(sDatabase, databaseSettings.get(sDatabase));
 			props.put(sHost, databaseSettings.get(sHost));
 			props.put(sPort, databaseSettings.get(sPort));
+			props.put(sType, databaseSettings.get(sType));
 			response.put("result", props);
 		}
 		return response;
+	}
+	
+	protected static String getHashString(String str) throws NoSuchAlgorithmException, UnsupportedEncodingException {
+		MessageDigest md = MessageDigest.getInstance("SHA-256");
+		md.update(str.getBytes("UTF-8"));
+		StringBuffer hexString = new StringBuffer();
+		byte[] hash = md.digest();
+		for (byte b : hash) {
+			if ((0xFF & b) < 0x10)
+				hexString.append("0" + Integer.toHexString((0xFF & b)));
+			else
+				hexString.append(Integer.toHexString(0xFF & b));
+		}
+		return hexString.toString();
 	}
 }
