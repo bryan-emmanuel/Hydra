@@ -58,6 +58,11 @@ public class HydraService {
 	protected static Logger sLogger;
 	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
 	private static HashMap<String, ArrayList<DatabaseConnection>> sDatabaseConnections = new HashMap<String, ArrayList<DatabaseConnection>>();
+	protected static final String DB_TYPE_UNIDATA = "unidata";
+	protected static final String DB_TYPE_MYSQL = "mysql";
+	protected static final String DB_TYPE_MSSQL = "mssql";
+	protected static final String DB_TYPE_ORACLE = "oracle";
+	protected static final String DB_TYPE_POSTGRESQL = "postgresql";
 
 	public static void main(String[] args) {
 
@@ -192,30 +197,31 @@ public class HydraService {
 		DatabaseConnection databaseConnection = null;
 		// check for existing connection
 		if (sDatabaseConnections.containsKey(database)) {
+			HydraService.writeLog("get existing connection to: " + database);
 			ArrayList<DatabaseConnection> connections = sDatabaseConnections.get(database);
 			Iterator<DatabaseConnection> iter = connections.iterator();
 			while (iter.hasNext()) {
 				databaseConnection = iter.next();
-				if (databaseConnection.connect()) {
+				if (databaseConnection.connect())
 					return databaseConnection;
-				}
 			}
 		}
 		// if an existing connection cannot be used
 		if (sDatabaseSettings.containsKey(database)) {
+			HydraService.writeLog("get new connection to: " + database);
 			ArrayList<DatabaseConnection> connections = sDatabaseConnections.get(database);
 			HashMap<String, String> databaseSettings = sDatabaseSettings.get(database);
 			if (connections.size() < Integer.parseInt(databaseSettings.get(sConnections))) {
 				String type = databaseSettings.get(sType);
-				if (type.equals("unidata"))
+				if (DB_TYPE_UNIDATA.equals(type))
 					(databaseConnection = new UnidataConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), databaseSettings.get(sDASU), databaseSettings.get(sDASP), databaseSettings.get(sSQLENVINIT))).connect();
-				else if (type.equals("mssql"))
+				else if (DB_TYPE_MSSQL.equals(type))
 					(databaseConnection = new MSSQLConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
-				else if (type.equals("oracle"))
+				else if (DB_TYPE_ORACLE.equals(type))
 					(databaseConnection = new OracleConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
-				else if (type.equals("mysql"))
+				else if (DB_TYPE_MYSQL.equals(type))
 					(databaseConnection = new MySQLConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
-				else if (type.equals("postresql"))
+				else if (DB_TYPE_POSTGRESQL.equals(type))
 					(databaseConnection = new PostgreSQLConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else
 					throw new Exception("unknown type:" + type);
@@ -240,6 +246,7 @@ public class HydraService {
 			for (int i = 0; (i < connections.size()) && (connections.size() > clients); i++) {
 				DatabaseConnection connection = connections.get(i);
 				if (!connection.isLocked()) {
+					writeLog("disconnect database");
 					try {
 						connection.disconnect();
 					} catch (Exception e) {
