@@ -44,35 +44,47 @@ def main():
 		elif (key == 'challenge'):
 			challenge = value
 	
-	protocol = raw_input('Protocol:')
-	while (protocol != ''):
-		req = protocol + '://'
-		params = ''
+	action = raw_input('Action:')
+	while (action != ''):
+		authRequest = action
+		target = ''
+		columns = []
+		values = []
+		selection = ''
+		statement = ''
 		database = raw_input('Database:')
 		if (database != ''):
-			req += database + '/'
-			obj = raw_input('Object:')
-			if (obj != ''):
-				req += obj
-				params = raw_input('Parameters:')
-				if (params != ''):
-					req += '?' + params
+			authRequest += database
+			target = raw_input('Target:')
+			if (target != ''):
+				authRequest += target
+				print 'Enter columns.'
+				columns = []
+				v = raw_input('column:')
+				while (v != ''):
+					if (v == '""'):
+						v = ''
+					authRequest += v
+					columns.append(v)
+					v = raw_input('column:')
+				print 'Enter values.'
+				values = []
+				v = raw_input('value:')
+				while (v != ''):
+					if (v == '""'):
+						v = ''
+					authRequest += v
+					values.append(v)
+					v = raw_input('value:')
+				selection = raw_input('selection:')
+				authRequest += selection
+				statement = raw_input('statement:')
+				authRequest += statement
+		print 'auth: ' + authRequest
 		# add auth
 		saltedPassphrase = hashlib.sha256(salt + passphrase).hexdigest()[:64]
-		auth = hashlib.sha256(req + challenge + saltedPassphrase).hexdigest()[:64]
-		print 'requestAuth: ' + req
-		print 'challenge: ' + challenge
-		print 'salt: ' + salt
-		print 'passphrase: ' + passphrase
-		print 'saltedpas: ' + saltedPassphrase
-		print 'auth: ' + auth
-		print 'len: %d' % len(auth)
-		if (params == ''):
-			req += '?auth='
-		else:
-			req += '&auth='
-		req += auth
-		print 'send: ' + req
+		auth = hashlib.sha256(authRequest + challenge + saltedPassphrase).hexdigest()[:64]
+		req = json.dumps({'action':action,'database':database,'target':target,'columns':columns,'values':values,'selection':selection,'statement':statement,'auth':auth})
 		s.send(req + '\n')
 		# read response
 		errors = ''
@@ -95,11 +107,11 @@ def main():
 				print r
 		if (errors == ''):
 			print ''
-			protocol = raw_input('Protocol:')
+			action = raw_input('Action:')
 		else:
 			for error in errors:
 				print error
-			protocol = ''
+			action = ''
 	
 	s.close()
 	return 0

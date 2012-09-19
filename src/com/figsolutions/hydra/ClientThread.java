@@ -6,14 +6,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
 import java.net.Socket;
 import java.net.URLDecoder;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -21,7 +17,7 @@ import org.json.simple.parser.JSONParser;
 
 import com.sun.jndi.toolkit.url.Uri;
 
-public class ClientThread implements Runnable {
+public class ClientThread extends Thread {
 
 	private static final String PARAM_AUTH = "auth";
 	private static final String PARAM_SALT = "salt";
@@ -45,6 +41,7 @@ public class ClientThread implements Runnable {
 	private Socket mSocket;
 	private String mPassphrase;
 	private String mSalt;
+	private boolean mKeepAlive = true;
 
 	public ClientThread(Socket socket, int clientIndex, String passphrase, String salt) {
 		mSocket = socket;
@@ -91,14 +88,9 @@ public class ClientThread implements Runnable {
 
 			BufferedReader br = new BufferedReader(new InputStreamReader(in));
 			String line = br.readLine();
-			while ((line != null) && (line.length() > 0)) {
+			while (mKeepAlive && (line != null) && (line.length() > 0)) {
 				HydraService.writeLog("read:"+line);
 				// get the request before auth for adding to the authentication
-				int authIdx = line.indexOf(PARAM_AUTH);
-				String requestAuth = "";
-				if (authIdx != -1)
-					requestAuth = line.substring(0, --authIdx);
-				HydraService.writeLog("requestAuth:"+requestAuth);
 				HydraRequest hydraRequest;
 				if (line.startsWith("{"))
 					hydraRequest = new HydraRequest((JSONObject) (new JSONParser()).parse(line));
@@ -107,14 +99,14 @@ public class ClientThread implements Runnable {
 				if (hydraRequest.authenticated(challenge, saltedPassphrase)) {
 					JSONObject response;
 					// execute, select, update, insert, delete
-					if (ACTION_ABOUT.equals(hydraRequest.action) && (hydraRequest.database == null)) {
+					if (ACTION_ABOUT.equals(hydraRequest.action) && (hydraRequest.database.length() == 0)) {
 						response = HydraService.getDatabases();
 					} else if (hydraRequest.database != null) {
 						if (ACTION_ABOUT.equals(hydraRequest.action))
 							response = HydraService.getDatabase(hydraRequest.database);
 						else {
 							databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
-							if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.statement != null))
+							if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.statement.length() > 0))
 								response = databaseConnection.execute(hydraRequest.statement);
 							else if (ACTION_QUERY.equals(hydraRequest.action) && (hydraRequest.columns.length > 0))
 								response = databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection);
@@ -159,6 +151,20 @@ public class ClientThread implements Runnable {
 		} finally {
 			if (databaseConnection != null)
 				databaseConnection.release();
+			if (in != null) {
+				try {
+					in.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+			if (out != null) {
+				try {
+					out.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
 			try {
 				mSocket.close();
 			} catch (IOException e) {
@@ -167,18 +173,22 @@ public class ClientThread implements Runnable {
 			HydraService.removeClientThread(mClientIndex);
 		}
 	}
+	
+	protected void shutdown() {
+		mKeepAlive = false;
+	}
 
 	class HydraRequest {
 
-		String action = null;
-		String database = null;
-		String target = null;
+		String action = "";
+		String database = "";
+		String target = "";
 		String[] columns = new String[0];
 		String[] values = new String[0];
-		String selection = null;
-		String statement = null;
-		String auth = null;
-		String requestAuth = null;
+		String selection = "";
+		String statement = "";
+		String auth = "";
+		String requestAuth = "";
 
 		HydraRequest(JSONObject request) {
 			action = (String) request.get(PARAM_ACTION);
@@ -189,8 +199,12 @@ public class ClientThread implements Runnable {
 			selection = (String) request.get(PARAM_SELECTION);
 			statement = (String) request.get(PARAM_STATEMENT);
 			auth = (String) request.get(PARAM_AUTH);
-			request.remove(PARAM_AUTH);
-			requestAuth = request.toJSONString();
+			requestAuth = action + database + target;
+			for (String s : columns)
+				requestAuth += s;
+			for (String s : values)
+				requestAuth += s;
+			requestAuth += selection + statement;
 		}
 
 		HydraRequest(Uri request) {
@@ -199,15 +213,22 @@ public class ClientThread implements Runnable {
 			database = request.getHost();
 			if (ACTION_ABOUT.equals(action) && database.startsWith("?")) {
 				rawQuery = database.substring(1);
-				database = null;
+				database = "";
 			} else {
 				target = request.getPath();
 				if ((target != null) && (target.length() > 1))
 					target = target.substring(1);
+				else
+					target = "";
 				rawQuery = request.getQuery();
-				if ((rawQuery != null) && (rawQuery.length() > 0))
+				if ((rawQuery != null) && (rawQuery.length() > 1))
 					rawQuery = rawQuery.substring(1);
 			}
+			// set the requestAuth
+			requestAuth = request.toString();
+			int authIdx = requestAuth.lastIndexOf("auth");
+			requestAuth = requestAuth.substring(0, --authIdx);
+			// parse parameters
 			String[] rawParams = rawQuery.split("&");
 			for (String param : rawParams) {
 				String[] pair = param.split("=");
@@ -236,6 +257,7 @@ public class ClientThread implements Runnable {
 		}
 
 		boolean authenticated(long challenge, String saltedPassphrase) {
+			HydraService.writeLog("requestAuth: " + requestAuth);
 			String passphrase;
 			try {
 				passphrase = HydraService.getHashString(requestAuth + Long.toString(challenge) + saltedPassphrase);
@@ -268,14 +290,24 @@ public class ClientThread implements Runnable {
 			int fromIndex = 0;
 			String value;
 			while (((nextIndex = valuesIn.indexOf(",", fromIndex)) != -1) && (fromIndex < valuesIn.length())) {
-				if (fromIndex == nextIndex)
+				if (nextIndex == 0)
 					value = "";
 				else {
-					value = valuesIn.substring(fromIndex, nextIndex);
-					if (value == null)
-						value = "";
+					// check if the comma is escaped
+					if (valuesIn.substring((nextIndex - 1), nextIndex).equals("\\"))
+						value = null;
+					else {
+						if (fromIndex == nextIndex)
+							value = "";
+						else {
+							value = valuesIn.substring(fromIndex, nextIndex);
+							if (value == null)
+								value = "";
+						}
+					}
 				}
-				values.add(value);
+				if (value != null)
+					values.add(value);
 				fromIndex = nextIndex + 1;
 			}
 			// add the remaining value

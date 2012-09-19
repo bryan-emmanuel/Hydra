@@ -36,6 +36,7 @@ public class DatabaseConnection {
 	public boolean connect() throws Exception {
 		if (mLock)
 			throw new Exception("connection locked");
+		HydraService.writeLog("get existing connection to: " + mAccountPath);
 		mLock = true;
 		return mLock;
 	}

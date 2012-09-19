@@ -184,28 +184,17 @@ public class HydraService {
 			System.out.println(message);
 	}
 
-//	public static int getListenPort() {
-//		return sListenPort;
-//	}
-//
-//	public static void setListenPort(int listenPort) {
-//		HydraService.sListenPort = listenPort;
-//	}
-
 	public synchronized static DatabaseConnection getDatabaseConnection(String database) throws Exception {
 		// return an existing database connection, or spawn a new one if the pool isn't full
-		DatabaseConnection databaseConnection = null;
 		// check for existing connection
 		if (sDatabaseConnections.containsKey(database)) {
-			HydraService.writeLog("get existing connection to: " + database);
 			ArrayList<DatabaseConnection> connections = sDatabaseConnections.get(database);
-			Iterator<DatabaseConnection> iter = connections.iterator();
-			while (iter.hasNext()) {
-				databaseConnection = iter.next();
+			for (DatabaseConnection databaseConnection : connections) {
 				if (databaseConnection.connect())
 					return databaseConnection;
 			}
 		}
+		DatabaseConnection databaseConnection = null;
 		// if an existing connection cannot be used
 		if (sDatabaseSettings.containsKey(database)) {
 			HydraService.writeLog("get new connection to: " + database);
@@ -226,6 +215,7 @@ public class HydraService {
 				else
 					throw new Exception("unknown type:" + type);
 				connections.add(databaseConnection);
+				sDatabaseConnections.put(database, connections);
 				return databaseConnection;
 			}
 		} else
@@ -234,14 +224,10 @@ public class HydraService {
 	}
 
 	public synchronized static void removeClientThread(int index) {
-		int clients = sAcceptThread.getClientThreads();
-		if (clients > index)
-			sAcceptThread.removeClientThread(index);
+		int clients = sAcceptThread.removeClientThread(index);
 		// maintain atleast as many connections/database as client threads
-		Set<String> keys = sDatabaseConnections.keySet();
-		Iterator<String> iter = keys.iterator();
-		while (iter.hasNext()) {
-			ArrayList<DatabaseConnection> connections = sDatabaseConnections.get(iter.next());
+		for (String key : sDatabaseConnections.keySet()) {
+			ArrayList<DatabaseConnection> connections = sDatabaseConnections.get(key);
 			// clean up unnecessary connections
 			for (int i = 0; (i < connections.size()) && (connections.size() > clients); i++) {
 				DatabaseConnection connection = connections.get(i);
@@ -256,6 +242,7 @@ public class HydraService {
 					connections.remove(i--);
 				}
 			}
+			sDatabaseConnections.put(key, connections);
 		}
 		
 	}

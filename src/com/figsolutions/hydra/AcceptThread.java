@@ -9,7 +9,7 @@ public class AcceptThread implements Runnable {
 	
 	private int mListenPort = 9001;
 	private int mClientThreadSize = 1;
-	private ArrayList<Thread> mClientThreads = new ArrayList<Thread>();
+	private ArrayList<ClientThread> mClientThreads = new ArrayList<ClientThread>();
 	private String mPassphrase;
 	private String mSalt;
 
@@ -20,12 +20,12 @@ public class AcceptThread implements Runnable {
 		mSalt = salt;
 	}
 	
-	public synchronized int getClientThreads() {
+	public synchronized int removeClientThread(int index) {
+		if (index < mClientThreads.size()) {
+			mClientThreads.get(index).shutdown();
+			mClientThreads.remove(index);
+		}
 		return mClientThreads.size();
-	}
-	
-	public synchronized void removeClientThread(int index) {
-		mClientThreads.remove(index);
 	}
 
 	@Override
@@ -46,20 +46,21 @@ public class AcceptThread implements Runnable {
 			// wait for connection requests
 			while (listening) {
 				try {
+					HydraService.writeLog("listening...");
 					Socket client = socket.accept();
 					if (mClientThreads.size() < mClientThreadSize) {
-						Thread clientThread = new Thread(new ClientThread(client, mClientThreads.size(), mPassphrase, mSalt));
-						mClientThreads.add(clientThread);						
+						ClientThread clientThread = new ClientThread(client, mClientThreads.size(), mPassphrase, mSalt);
+						mClientThreads.add(clientThread);
 						clientThread.start();
-						clientThread.join();
+						HydraService.writeLog("...start thread");
 					}
 				} catch (IOException e) {
 					HydraService.writeLog(e.getMessage());
-				} catch (InterruptedException e) {
-					HydraService.writeLog(e.getMessage());
 				}
 			}
-			
+			// close down
+			while (!mClientThreads.isEmpty())
+				HydraService.removeClientThread(0);
 			try {
 				socket.close();
 			} catch (IOException e) {
