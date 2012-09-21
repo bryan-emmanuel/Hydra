@@ -1,10 +1,21 @@
 package com.figsolutions.hydra;
 
+import static com.figsolutions.hydra.ClientThread.ACTION_ABOUT;
+import static com.figsolutions.hydra.ClientThread.ACTION_DELETE;
+import static com.figsolutions.hydra.ClientThread.ACTION_EXECUTE;
+import static com.figsolutions.hydra.ClientThread.ACTION_INSERT;
+import static com.figsolutions.hydra.ClientThread.ACTION_QUERY;
+import static com.figsolutions.hydra.ClientThread.ACTION_SUBROUTINE;
+import static com.figsolutions.hydra.ClientThread.ACTION_UPDATE;
+
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.security.MessageDigest;
@@ -63,6 +74,10 @@ public class HydraService {
 	protected static final String DB_TYPE_MSSQL = "mssql";
 	protected static final String DB_TYPE_ORACLE = "oracle";
 	protected static final String DB_TYPE_POSTGRESQL = "postgresql";
+	private static final String sQueueFileName = "queue.txt";
+	private static File sQueueFile = null;
+	private static int[] sQueueLock = new int[0];// small lock object
+	private static final String sHydraConfFileName = "hydra.conf";
 
 	public static void main(String[] args) {
 
@@ -82,99 +97,102 @@ public class HydraService {
 			writeLog("Hydra starting");
 		}
 
-		File f = new File("hydra.conf");
+		File f = new File(sHydraConfFileName);
 		if (!f.exists()) {
 			try {
-				f.createNewFile();
+				if (!f.createNewFile())
+					f = null;
 			} catch (IOException e) {
 				writeLog(e.getMessage());
 			}
 		}
 
-		int listenPort = 9001;
-		
-		FileInputStream fis;
-		try {
-			writeLog("parsing conf file");
-			fis = new FileInputStream("hydra.conf");
-			InputStreamReader isr = new InputStreamReader(fis, "UTF-8");
-			char[] buffer = new char[1024];
-			StringBuilder content = new StringBuilder();
-			int read = 0;
-			while ((read = isr.read(buffer)) != -1) {
-				content.append(buffer, 0, read);
-			}
-			JSONParser parser = new JSONParser();
-			JSONObject conf = (JSONObject) parser.parse(content.toString());
-			sConnectionPassphrase = (String) conf.get(sPassphrase);
-			listenPort = Integer.parseInt((String) conf.get(sPort));
-			JSONArray databases = (JSONArray) conf.get(sDatabases);
-			for (int i = 0, l = databases.size(); i < l; i++) {
-				JSONObject databaseIn = (JSONObject) databases.get(i);
-				String alias = (String) databaseIn.get(sAlias);
-				HashMap<String, String> database = new HashMap<String, String>();
-				database.put(sType, (String) databaseIn.get(sType));
-				database.put(sDatabase, (String) databaseIn.get(sDatabase));
-				database.put(sHost, (String) databaseIn.get(sHost));
-				database.put(sPort, (String) databaseIn.get(sPort));
-				database.put(sUsername, (String) databaseIn.get(sUsername));
-				database.put(sPassword, (String) databaseIn.get(sPassword));
-				database.put(sConnections, (String) databaseIn.get(sConnections));
-				database.put(sDASU, (String) databaseIn.get(sDASU));
-				database.put(sDASP, (String) databaseIn.get(sDASP));
-				database.put(sSQLENVINIT, (String) databaseIn.get(sSQLENVINIT));
-				sDatabaseSettings.put(alias, database);
-				sDatabaseConnections.put(alias, new ArrayList<DatabaseConnection>());
-			}
-		} catch (FileNotFoundException e1) {
-			writeLog(e1.getMessage());
-		} catch (UnsupportedEncodingException e) {
-			writeLog(e.getMessage());
-		} catch (ParseException e) {
-			writeLog(e.getMessage());
-		} catch (IOException e) {
-			writeLog(e.getMessage());
-		}
-		
-		// generate a salt
-		String salt = new BigInteger(256, new SecureRandom()).toString(16);
-		MessageDigest md;
-		try {
-			md = MessageDigest.getInstance("SHA-256");
-			md.update(salt.getBytes("UTF-8"));
-			sSalt = new BigInteger(1, md.digest()).toString(16);
-			if (sSalt.length() > 64) {
-				sSalt = sSalt.substring(0, 64);
-			}
-		} catch (NoSuchAlgorithmException e1) {
-			e1.printStackTrace();
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}
+		if (f != null) {
+			int listenPort = 9001;
 
-		// for writing a conf file...
-		//		FileOutputStream fos;
-		//		try {
-		//			fos = new FileOutputStream("hydra.properties");
-		//			OutputStreamWriter out = new OutputStreamWriter(fos, "UTF-8");
-		//		} catch (FileNotFoundException e) {
-		//			// TODO Auto-generated catch block
-		//			e.printStackTrace();
-		//		} catch (UnsupportedEncodingException e) {
-		//			// TODO Auto-generated catch block
-		//			e.printStackTrace();
-		//		}
+			FileInputStream fis;
+			try {
+				writeLog("parsing conf file");
+				fis = new FileInputStream(sHydraConfFileName);
+				InputStreamReader isr = new InputStreamReader(fis, "UTF-8");
+				char[] buffer = new char[1024];
+				StringBuilder content = new StringBuilder();
+				int read = 0;
+				while ((read = isr.read(buffer)) != -1)
+					content.append(buffer, 0, read);
+				JSONParser parser = new JSONParser();
+				JSONObject conf = (JSONObject) parser.parse(content.toString());
+				sConnectionPassphrase = (String) conf.get(sPassphrase);
+				listenPort = Integer.parseInt((String) conf.get(sPort));
+				JSONArray databases = (JSONArray) conf.get(sDatabases);
+				for (int i = 0, l = databases.size(); i < l; i++) {
+					JSONObject databaseIn = (JSONObject) databases.get(i);
+					String alias = (String) databaseIn.get(sAlias);
+					HashMap<String, String> database = new HashMap<String, String>();
+					database.put(sType, (String) databaseIn.get(sType));
+					database.put(sDatabase, (String) databaseIn.get(sDatabase));
+					database.put(sHost, (String) databaseIn.get(sHost));
+					database.put(sPort, (String) databaseIn.get(sPort));
+					database.put(sUsername, (String) databaseIn.get(sUsername));
+					database.put(sPassword, (String) databaseIn.get(sPassword));
+					database.put(sConnections, (String) databaseIn.get(sConnections));
+					database.put(sDASU, (String) databaseIn.get(sDASU));
+					database.put(sDASP, (String) databaseIn.get(sDASP));
+					database.put(sSQLENVINIT, (String) databaseIn.get(sSQLENVINIT));
+					sDatabaseSettings.put(alias, database);
+					sDatabaseConnections.put(alias, new ArrayList<DatabaseConnection>());
+				}
+			} catch (FileNotFoundException e1) {
+				writeLog(e1.getMessage());
+			} catch (UnsupportedEncodingException e) {
+				writeLog(e.getMessage());
+			} catch (ParseException e) {
+				writeLog(e.getMessage());
+			} catch (IOException e) {
+				writeLog(e.getMessage());
+			}
 
-		// listen for connections
-		int clientThreadSize = 1;
-		sAcceptThread = new AcceptThread(listenPort, clientThreadSize, sConnectionPassphrase, sSalt);
-		Thread acceptThread = new Thread(sAcceptThread);
-		acceptThread.start();
-		try {
-			acceptThread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+			// generate a salt
+			String salt = new BigInteger(256, new SecureRandom()).toString(16);
+			MessageDigest md;
+			try {
+				md = MessageDigest.getInstance("SHA-256");
+				md.update(salt.getBytes("UTF-8"));
+				sSalt = new BigInteger(1, md.digest()).toString(16);
+				if (sSalt.length() > 64) {
+					sSalt = sSalt.substring(0, 64);
+				}
+			} catch (NoSuchAlgorithmException e1) {
+				e1.printStackTrace();
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+			}
+
+			// for writing a conf file...
+			//		FileOutputStream fos;
+			//		try {
+			//			fos = new FileOutputStream("hydra.properties");
+			//			OutputStreamWriter out = new OutputStreamWriter(fos, "UTF-8");
+			//		} catch (FileNotFoundException e) {
+			//			// TODO Auto-generated catch block
+			//			e.printStackTrace();
+			//		} catch (UnsupportedEncodingException e) {
+			//			// TODO Auto-generated catch block
+			//			e.printStackTrace();
+			//		}
+
+			// listen for connections
+			int clientThreadSize = 1;
+			sAcceptThread = new AcceptThread(listenPort, clientThreadSize, sConnectionPassphrase, sSalt);
+			Thread acceptThread = new Thread(sAcceptThread);
+			acceptThread.start();
+			try {
+				acceptThread.join();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		} else
+			System.out.println("unable to read " + sHydraConfFileName);
 	}
 
 	protected static void writeLog(String message) {
@@ -244,9 +262,9 @@ public class HydraService {
 			}
 			sDatabaseConnections.put(key, connections);
 		}
-		
+
 	}
-	
+
 	@SuppressWarnings("unchecked")
 	public synchronized static JSONObject getDatabases() {
 		JSONObject response = new JSONObject();
@@ -258,7 +276,7 @@ public class HydraService {
 		response.put("result", arr);
 		return response;
 	}
-	
+
 	@SuppressWarnings("unchecked")
 	public synchronized static JSONObject getDatabase(String database) {
 		JSONObject response = new JSONObject();
@@ -274,7 +292,7 @@ public class HydraService {
 		}
 		return response;
 	}
-	
+
 	protected static String getHashString(String str) throws NoSuchAlgorithmException, UnsupportedEncodingException {
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update(str.getBytes("UTF-8"));
@@ -288,4 +306,125 @@ public class HydraService {
 		}
 		return hexString.toString();
 	}
+
+	// request queueing
+	// this is in case a database connection becomes unavailable
+
+	protected static void queueRequest(String request) {
+		synchronized (sQueueLock) {
+			if (sQueueFile == null) {
+				sQueueFile = new File(sQueueFileName);
+				if (!sQueueFile.exists()) {
+					try {
+						if (!sQueueFile.createNewFile())
+							sQueueFile = null;
+					} catch (IOException e) {
+						sQueueFile = null;
+						e.printStackTrace();
+					}
+				}
+			}
+			if (sQueueFile != null) {
+				FileWriter fw = null;
+				try {
+					fw = new FileWriter(sQueueFile, true);
+				} catch (IOException e) {
+					fw = null;
+					e.printStackTrace();
+				}
+				if (fw != null) {
+					PrintWriter pw = new PrintWriter(fw);
+					pw.println(request);
+					pw.close();
+					try {
+						fw.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+			}
+		}
+	}
+
+	protected static void processQueue() {
+		synchronized (sQueueLock) {
+			if (sQueueFile == null) {
+				sQueueFile = new File(sQueueFileName);
+				if (!sQueueFile.exists())
+					sQueueFile = null;
+			}
+			if (sQueueFile != null) {
+				FileInputStream fis = null;
+				try {
+					fis = new FileInputStream(sQueueFile);
+				} catch (FileNotFoundException e) {
+					fis = null;
+					e.printStackTrace();
+				}
+				if (fis != null) {
+					InputStreamReader isr = null;
+					try {
+						isr = new InputStreamReader(fis, "UTF-8");
+					} catch (UnsupportedEncodingException e) {
+						isr = null;
+						e.printStackTrace();
+					}
+					if (isr != null) {
+						BufferedReader br = new BufferedReader(isr);
+						String request = null;
+						try {
+							while ((request = br.readLine()) != null) {
+								// process the request
+								try {
+									HydraRequest hydraRequest = new HydraRequest((JSONObject) (new JSONParser()).parse(request));
+									//TODO: request could be long running, so launch threads
+									//TODO: remove this request from the queue
+									//TODO: if the request fails, re-queue it, but beware of hysteresis
+									
+									// execute, select, update, insert, delete
+									if (ACTION_ABOUT.equals(hydraRequest.action) && (hydraRequest.database.length() == 0))
+										HydraService.getDatabases();
+									else if (hydraRequest.database != null) {
+										if (ACTION_ABOUT.equals(hydraRequest.action))
+											HydraService.getDatabase(hydraRequest.database);
+										else {
+											DatabaseConnection databaseConnection = null;
+											try {
+												databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
+											} catch (Exception e) {
+												e.printStackTrace();
+											}
+											if (databaseConnection != null) {
+												if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.statement.length() > 0))
+													databaseConnection.execute(hydraRequest.statement);
+												else if (ACTION_QUERY.equals(hydraRequest.action) && (hydraRequest.columns.length > 0))
+													databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection);
+												else if (ACTION_UPDATE.equals(hydraRequest.action) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
+													databaseConnection.update(hydraRequest.target, hydraRequest.columns, hydraRequest.values, hydraRequest.selection);
+												else if (ACTION_INSERT.equals(hydraRequest.action) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
+													databaseConnection.insert(hydraRequest.target, hydraRequest.columns, hydraRequest.values);
+												else if (ACTION_DELETE.equals(hydraRequest.action))
+													databaseConnection.delete(hydraRequest.target, hydraRequest.selection);
+												else if (ACTION_SUBROUTINE.equals(hydraRequest.action) && (hydraRequest.values.length > 0))
+													databaseConnection.subroutine(hydraRequest.target, hydraRequest.values);
+												//TODO: update the queue file
+
+												// release the connection
+												databaseConnection.release();
+											}
+										}
+									}
+								} catch (ParseException e) {
+									e.printStackTrace();
+								}
+							}
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+					}
+				}
+			}
+		}
+	}
+
 }
