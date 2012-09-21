@@ -23,7 +23,7 @@ public class UnidataConnection extends DatabaseConnection {
 	private static final String SIMPLE_QUERY_FORMAT = "SELECT %s";
 	private static final String SELECTION_QUERY_FORMAT = "SELECT %s WITH %s";
 
-	public UnidataConnection(String hostName, String hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
+	public UnidataConnection(String hostName, int hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
 		super(hostName, hostPort, accountPath, username, password, dasu, dasp, sqlenvinit);
 	}
 
@@ -33,7 +33,7 @@ public class UnidataConnection extends DatabaseConnection {
 		if (mSession == null) {
 			mSession = new UniSession();
 			mSession.setHostName(mHostName);
-			mSession.setHostPort(Integer.parseInt(mHostPort));
+			mSession.setHostPort(mHostPort);
 			mSession.setAccountPath(mAccountPath);
 			mSession.setUserName(mUsername);
 			mSession.setPassword(mPassword);

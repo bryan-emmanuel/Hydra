@@ -19,7 +19,7 @@ public class MSSQLConnection extends DatabaseConnection {
 	private static final String UPDATE_QUERY = "UPDATE %s SET %s WHERE %s";
 	private static final String DELETE_QUERY = "DELETE FROM %s WHERE %s";
 
-	public MSSQLConnection(String hostName, String hostPort, String accountPath, String username, String password) {
+	public MSSQLConnection(String hostName, int hostPort, String accountPath, String username, String password) {
 		super(hostName, hostPort, accountPath, username, password);
 	}
 

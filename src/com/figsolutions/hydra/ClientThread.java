@@ -5,11 +5,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
 import java.net.Socket;
+import java.security.NoSuchAlgorithmException;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 import com.sun.jndi.toolkit.url.Uri;
 
@@ -22,9 +26,9 @@ public class ClientThread extends Thread {
 	protected static final String PARAM_VALUES = "values";
 	protected static final String PARAM_COLUMNS = "columns";
 	protected static final String PARAM_SELECTION = "selection";
-	protected static final String PARAM_STATEMENT = "statement";
 	protected static final String PARAM_TARGET = "target";
 	protected static final String PARAM_ACTION = "action";
+	protected static final String PARAM_QUEUEABLE = "queueable";
 	protected static final String ACTION_ABOUT = "about";
 	protected static final String ACTION_QUERY = "query";
 	protected static final String ACTION_INSERT = "insert";
@@ -66,10 +70,18 @@ public class ClientThread extends Thread {
 		DatabaseConnection databaseConnection = null;
 		HydraRequest hydraRequest = null;
 		// determine database type and get connection
-		try {
+		//		try {
 
-			// salt the password
-			String saltedPassphrase = HydraService.getHashString(mSalt + mPassphrase);
+		// salt the password
+		String saltedPassphrase = null;
+		try {
+			saltedPassphrase = HydraService.getHashString(mSalt + mPassphrase);
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		if (saltedPassphrase != null) {
 			if (saltedPassphrase.length() > 64)
 				saltedPassphrase = saltedPassphrase.substring(0, 64);
 
@@ -77,7 +89,12 @@ public class ClientThread extends Thread {
 			JSONObject o = new JSONObject();
 			o.put(PARAM_SALT, mSalt);
 			o.put(PARAM_CHALLENGE, Long.toString(challenge));
-			out.write((o.toString() + "\n").getBytes());
+			try {
+				out.write((o.toString() + "\n").getBytes());
+			} catch (IOException e) {
+				mKeepAlive = false;
+				e.printStackTrace();
+			}
 
 			// requests take the form of:
 			// <type>://<database>/<object>?properties=<p1>,<p2>,...
@@ -85,15 +102,33 @@ public class ClientThread extends Thread {
 			// also supports JSON {type:,database:,object:,values:,columns:,values:}
 
 			BufferedReader br = new BufferedReader(new InputStreamReader(in));
-			String line = br.readLine();
+			String line = null;
+			try {
+				line = br.readLine();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 			while (mKeepAlive && (line != null) && (line.length() > 0)) {
 				HydraService.writeLog("read:"+line);
 				// get the request before auth for adding to the authentication
-				if (line.startsWith("{"))
-					hydraRequest = new HydraRequest((JSONObject) (new JSONParser()).parse(line));
-				else
-					hydraRequest = new HydraRequest(new Uri(line));
-				if (hydraRequest.authenticated(challenge, saltedPassphrase)) {
+				if (line.startsWith("{")) {
+					JSONObject request = null;
+					try {
+						request = (JSONObject) (new JSONParser().parse(line));
+						hydraRequest = new HydraRequest(request);
+					} catch (ParseException e) {
+						e.printStackTrace();
+					}
+				} else {
+					Uri request = null;
+					try {
+						request = new Uri(line);
+						hydraRequest = new HydraRequest(request);
+					} catch (MalformedURLException e) {
+						e.printStackTrace();
+					}
+				}
+				if ((hydraRequest != null) && hydraRequest.authenticated(challenge, saltedPassphrase)) {
 					JSONObject response;
 					// execute, select, update, insert, delete
 					if (ACTION_ABOUT.equals(hydraRequest.action) && (hydraRequest.database.length() == 0))
@@ -102,77 +137,104 @@ public class ClientThread extends Thread {
 						if (ACTION_ABOUT.equals(hydraRequest.action))
 							response = HydraService.getDatabase(hydraRequest.database);
 						else {
-							databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
-							if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.statement.length() > 0))
-								response = databaseConnection.execute(hydraRequest.statement);
-							else if (ACTION_QUERY.equals(hydraRequest.action) && (hydraRequest.columns.length > 0))
-								response = databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection);
-							else if (ACTION_UPDATE.equals(hydraRequest.action) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
-								response = databaseConnection.update(hydraRequest.target, hydraRequest.columns, hydraRequest.values, hydraRequest.selection);
-							else if (ACTION_INSERT.equals(hydraRequest.action) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
-								response = databaseConnection.insert(hydraRequest.target, hydraRequest.columns, hydraRequest.values);
-							else if (ACTION_DELETE.equals(hydraRequest.action))
-								response = databaseConnection.delete(hydraRequest.target, hydraRequest.selection);
-							else if (ACTION_SUBROUTINE.equals(hydraRequest.action) && (hydraRequest.values.length > 0))
-								response = databaseConnection.subroutine(hydraRequest.target, hydraRequest.values);
-							else
-								throw new Exception(BAD_REQUEST);
-
-							// release the connection
-							databaseConnection.release();
+							try {
+								databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
+							} catch (Exception e) {
+								e.printStackTrace();
+							}
+							if (databaseConnection == null) {
+								// queue
+								response = new JSONObject();
+								JSONArray errors = new JSONArray();
+								errors.add("no database connection");
+								if (hydraRequest.queueable) {
+									HydraService.queueRequest(hydraRequest.getRequest());
+									errors.add("queued");
+								}
+								response.put("errors", errors);
+							} else {
+								if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
+									response = databaseConnection.execute(hydraRequest.target);
+								else if (ACTION_QUERY.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0))
+									response = databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection);
+								else if (ACTION_UPDATE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
+									response = databaseConnection.update(hydraRequest.target, hydraRequest.columns, hydraRequest.values, hydraRequest.selection);
+								else if (ACTION_INSERT.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
+									response = databaseConnection.insert(hydraRequest.target, hydraRequest.columns, hydraRequest.values);
+								else if (ACTION_DELETE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
+									response = databaseConnection.delete(hydraRequest.target, hydraRequest.selection);
+								else if (ACTION_SUBROUTINE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.values.length > 0))
+									response = databaseConnection.subroutine(hydraRequest.target, hydraRequest.values);
+								else {
+									response = new JSONObject();
+									JSONArray errors = new JSONArray();
+									errors.add(BAD_REQUEST);
+									response.put("errors", errors);
+								}
+								// release the connection
+								databaseConnection.release();
+							}
 						}
-					} else
+					} else {
 						response = new JSONObject();
+						JSONArray errors = new JSONArray();
+						errors.add(BAD_REQUEST);
+						response.put("errors", errors);
+					}
 
 					// update the challenge
 					challenge = System.currentTimeMillis();
 					response.put("challenge", Long.toString(challenge));
 
 					HydraService.writeLog("response:"+response);
-					out.write((response.toString() + "\n").getBytes());
+					try {
+						out.write((response.toString() + "\n").getBytes());
+					} catch (IOException e) {
+						mKeepAlive = false;
+						e.printStackTrace();
+					}
+				} else {
+					JSONObject response = new JSONObject();
+					JSONArray errors = new JSONArray();
+					errors.add(BAD_REQUEST);
+					response.put("errors", errors);
+					try {
+						out.write(response.toString().getBytes());
+					} catch (IOException e) {
+						mKeepAlive = false;
+						HydraService.writeLog(e.getMessage());
+					}
+				}
+				try {
 					line = br.readLine();
-				} else
-					throw new Exception("authentication failed");
-			}
-		} catch (Exception e) {
-			if (BAD_REQUEST.equals(e.getMessage()) && (hydraRequest != null))
-				HydraService.queueRequest(hydraRequest.getRequest());
-			JSONObject response = new JSONObject();
-			JSONArray errors = new JSONArray();
-			errors.add("Exception: " + e.getMessage());
-			response.put("errors", errors);
-			try {
-				out.write(response.toString().getBytes());
-			} catch (IOException e1) {
-				HydraService.writeLog(e1.getMessage());
-			}
-			e.printStackTrace();
-		} finally {
-			if (databaseConnection != null)
-				databaseConnection.release();
-			if (in != null) {
-				try {
-					in.close();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
 			}
-			if (out != null) {
-				try {
-					out.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
-			try {
-				mSocket.close();
-			} catch (IOException e) {
-				HydraService.writeLog(e.getMessage());
-			}
-			HydraService.removeClientThread(mClientIndex);
 		}
+		// clean up everything
+		if (in != null) {
+			try {
+				in.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		if (out != null) {
+			try {
+				out.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		try {
+			mSocket.close();
+		} catch (IOException e) {
+			HydraService.writeLog(e.getMessage());
+		}
+		HydraService.removeClientThread(mClientIndex);
 	}
-	
+
 	protected void shutdown() {
 		mKeepAlive = false;
 	}

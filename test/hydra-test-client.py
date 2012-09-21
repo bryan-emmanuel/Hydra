@@ -51,7 +51,7 @@ def main():
 		columns = []
 		values = []
 		selection = ''
-		statement = ''
+		queueable = ''
 		database = raw_input('Database:')
 		if (database != ''):
 			authRequest += database
@@ -78,13 +78,13 @@ def main():
 					v = raw_input('value:')
 				selection = raw_input('selection:')
 				authRequest += selection
-				statement = raw_input('statement:')
-				authRequest += statement
+				queueable = raw_input('queueable (true,false):')
+				authRequest += queueable
 		print 'auth: ' + authRequest
 		# add auth
 		saltedPassphrase = hashlib.sha256(salt + passphrase).hexdigest()[:64]
 		auth = hashlib.sha256(authRequest + challenge + saltedPassphrase).hexdigest()[:64]
-		req = json.dumps({'action':action,'database':database,'target':target,'columns':columns,'values':values,'selection':selection,'statement':statement,'auth':auth})
+		req = json.dumps({'action':action,'database':database,'target':target,'columns':columns,'values':values,'selection':selection,'queueable':queueable,'auth':auth})
 		s.send(req + '\n')
 		# read response
 		errors = ''

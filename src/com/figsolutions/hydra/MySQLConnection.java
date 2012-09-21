@@ -19,7 +19,7 @@ public class MySQLConnection extends DatabaseConnection {
 	private static final String UPDATE_QUERY = "UPDATE %s SET %s WHERE %s";
 	private static final String DELETE_QUERY = "DELETE FROM %s WHERE %s";
 
-	public MySQLConnection(String hostName, String hostPort, String accountPath, String username, String password) {
+	public MySQLConnection(String hostName, int hostPort, String accountPath, String username, String password) {
 		super(hostName, hostPort, accountPath, username, password);
 	}
 

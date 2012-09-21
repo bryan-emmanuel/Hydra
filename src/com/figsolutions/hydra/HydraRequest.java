@@ -6,9 +6,9 @@ import static com.figsolutions.hydra.ClientThread.PARAM_AUTH;
 import static com.figsolutions.hydra.ClientThread.PARAM_COLUMNS;
 import static com.figsolutions.hydra.ClientThread.PARAM_DATABASE;
 import static com.figsolutions.hydra.ClientThread.PARAM_SELECTION;
-import static com.figsolutions.hydra.ClientThread.PARAM_STATEMENT;
 import static com.figsolutions.hydra.ClientThread.PARAM_TARGET;
 import static com.figsolutions.hydra.ClientThread.PARAM_VALUES;
+import static com.figsolutions.hydra.ClientThread.PARAM_QUEUEABLE;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -28,25 +28,37 @@ public class HydraRequest {
 	String[] columns = new String[0];
 	String[] values = new String[0];
 	String selection = "";
-	String statement = "";
 	String auth = "";
 	String requestAuth = "";
+	boolean queueable = false;
 
 	HydraRequest(JSONObject request) {
 		action = (String) request.get(PARAM_ACTION);
+		if (action == null)
+			action = "";
 		database = (String) request.get(PARAM_DATABASE);
+		if (database == null)
+			database = "";
 		target = (String) request.get(PARAM_TARGET);
+		if (target == null)
+			target = "";
 		columns = parseArray((JSONArray) request.get(PARAM_COLUMNS));
 		values = parseArray((JSONArray) request.get(PARAM_VALUES));
 		selection = (String) request.get(PARAM_SELECTION);
-		statement = (String) request.get(PARAM_STATEMENT);
+		if (selection == null)
+			selection = "";
+		String q = (String) request.get(PARAM_QUEUEABLE);
+		if (q == null)
+			q = "";
+		else
+			queueable = Boolean.parseBoolean(q);
 		auth = (String) request.get(PARAM_AUTH);
 		requestAuth = action + database + target;
 		for (String s : columns)
 			requestAuth += s;
 		for (String s : values)
 			requestAuth += s;
-		requestAuth += selection + statement;
+		requestAuth += selection + q;
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -64,7 +76,7 @@ public class HydraRequest {
 			valArr.add(s);
 		request.put(PARAM_VALUES, valArr);
 		request.put(PARAM_SELECTION, selection);
-		request.put(PARAM_STATEMENT, statement);
+		request.put(PARAM_QUEUEABLE, queueable);
 		return request.toJSONString();
 	}
 
@@ -105,8 +117,8 @@ public class HydraRequest {
 						values = splitValues(value);
 					else if (PARAM_SELECTION.equals(key))
 						selection = value;
-					else if (PARAM_STATEMENT.equals(key))
-						statement = value;
+					else if (PARAM_QUEUEABLE.equals(key))
+						queueable = Boolean.parseBoolean(value);
 					else if (PARAM_AUTH.equals(key))
 						auth = value;
 					HydraService.writeLog("param:"+key+"="+value);

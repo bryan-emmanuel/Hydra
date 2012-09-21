@@ -1,13 +1,5 @@
 package com.figsolutions.hydra;
 
-import static com.figsolutions.hydra.ClientThread.ACTION_ABOUT;
-import static com.figsolutions.hydra.ClientThread.ACTION_DELETE;
-import static com.figsolutions.hydra.ClientThread.ACTION_EXECUTE;
-import static com.figsolutions.hydra.ClientThread.ACTION_INSERT;
-import static com.figsolutions.hydra.ClientThread.ACTION_QUERY;
-import static com.figsolutions.hydra.ClientThread.ACTION_SUBROUTINE;
-import static com.figsolutions.hydra.ClientThread.ACTION_UPDATE;
-
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -59,6 +51,7 @@ public class HydraService {
 	private static final String sUsername = "username";
 	private static final String sPassword = "password";
 	private static final String sConnections = "connections";
+	private static final String sQueueRetryInterval = "queueretryinterval";
 	private static final String sDASU = "DASU";
 	private static final String sDASP = "DASP";
 	private static final String sSQLENVINIT = "SQLENVINIT";
@@ -78,6 +71,9 @@ public class HydraService {
 	private static File sQueueFile = null;
 	private static int[] sQueueLock = new int[0];// small lock object
 	private static final String sHydraConfFileName = "hydra.conf";
+	private static ArrayList<String> sQueue = new ArrayList<String>();
+	private static QueueThread sQueueThread = null;
+	private static int mQueueRetryInterval;
 
 	public static void main(String[] args) {
 
@@ -109,7 +105,8 @@ public class HydraService {
 
 		if (f != null) {
 			int listenPort = 9001;
-
+			int connections = AcceptThread.DEFAULT_CONNECTIONS; // default unlimiteds
+			mQueueRetryInterval = QueueThread.DEFAULT_QUEUERETRYINTERVAL;
 			FileInputStream fis;
 			try {
 				writeLog("parsing conf file");
@@ -123,7 +120,12 @@ public class HydraService {
 				JSONParser parser = new JSONParser();
 				JSONObject conf = (JSONObject) parser.parse(content.toString());
 				sConnectionPassphrase = (String) conf.get(sPassphrase);
-				listenPort = Integer.parseInt((String) conf.get(sPort));
+				if (conf.containsKey(sPort))
+					listenPort = Integer.parseInt((String) conf.get(sPort));
+				if (conf.containsKey(sConnections))
+					connections = Integer.parseInt((String) conf.get(sConnections));
+				if (conf.containsKey(sQueueRetryInterval))
+					mQueueRetryInterval = Integer.parseInt((String) conf.get(sQueueRetryInterval));
 				JSONArray databases = (JSONArray) conf.get(sDatabases);
 				for (int i = 0, l = databases.size(); i < l; i++) {
 					JSONObject databaseIn = (JSONObject) databases.get(i);
@@ -181,16 +183,25 @@ public class HydraService {
 			//			e.printStackTrace();
 			//		}
 
+			// check the queue
+			
+			if (readQueue()) {
+				sQueueThread = new QueueThread(mQueueRetryInterval);
+				sQueueThread.start();
+			}
+			
 			// listen for connections
-			int clientThreadSize = 1;
-			sAcceptThread = new AcceptThread(listenPort, clientThreadSize, sConnectionPassphrase, sSalt);
-			Thread acceptThread = new Thread(sAcceptThread);
-			acceptThread.start();
+			sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt);
+			sAcceptThread.start();
 			try {
-				acceptThread.join();
+				sAcceptThread.join(); // blocking method
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
+			if (sQueueThread != null)
+				stopQueueThread();
+			sAcceptThread.shutdown();
+			writeQueue();
 		} else
 			System.out.println("unable to read " + sHydraConfFileName);
 	}
@@ -220,16 +231,17 @@ public class HydraService {
 			HashMap<String, String> databaseSettings = sDatabaseSettings.get(database);
 			if (connections.size() < Integer.parseInt(databaseSettings.get(sConnections))) {
 				String type = databaseSettings.get(sType);
+				int port = Integer.parseInt(databaseSettings.get(sPort));
 				if (DB_TYPE_UNIDATA.equals(type))
-					(databaseConnection = new UnidataConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), databaseSettings.get(sDASU), databaseSettings.get(sDASP), databaseSettings.get(sSQLENVINIT))).connect();
+					(databaseConnection = new UnidataConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), databaseSettings.get(sDASU), databaseSettings.get(sDASP), databaseSettings.get(sSQLENVINIT))).connect();
 				else if (DB_TYPE_MSSQL.equals(type))
-					(databaseConnection = new MSSQLConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new MSSQLConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else if (DB_TYPE_ORACLE.equals(type))
-					(databaseConnection = new OracleConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new OracleConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else if (DB_TYPE_MYSQL.equals(type))
-					(databaseConnection = new MySQLConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new MySQLConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else if (DB_TYPE_POSTGRESQL.equals(type))
-					(databaseConnection = new PostgreSQLConnection(databaseSettings.get(sHost), databaseSettings.get(sPort), databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new PostgreSQLConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else
 					throw new Exception("unknown type:" + type);
 				connections.add(databaseConnection);
@@ -309,115 +321,39 @@ public class HydraService {
 
 	// request queueing
 	// this is in case a database connection becomes unavailable
-
-	protected static void queueRequest(String request) {
+	protected static void writeQueue() {
 		synchronized (sQueueLock) {
-			if (sQueueFile == null) {
-				sQueueFile = new File(sQueueFileName);
-				if (!sQueueFile.exists()) {
-					try {
-						if (!sQueueFile.createNewFile())
-							sQueueFile = null;
-					} catch (IOException e) {
-						sQueueFile = null;
-						e.printStackTrace();
-					}
-				}
-			}
-			if (sQueueFile != null) {
-				FileWriter fw = null;
-				try {
-					fw = new FileWriter(sQueueFile, true);
-				} catch (IOException e) {
-					fw = null;
-					e.printStackTrace();
-				}
-				if (fw != null) {
-					PrintWriter pw = new PrintWriter(fw);
-					pw.println(request);
-					pw.close();
-					try {
-						fw.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-	}
-
-	protected static void processQueue() {
-		synchronized (sQueueLock) {
-			if (sQueueFile == null) {
-				sQueueFile = new File(sQueueFileName);
-				if (!sQueueFile.exists())
-					sQueueFile = null;
-			}
-			if (sQueueFile != null) {
-				FileInputStream fis = null;
-				try {
-					fis = new FileInputStream(sQueueFile);
-				} catch (FileNotFoundException e) {
-					fis = null;
-					e.printStackTrace();
-				}
-				if (fis != null) {
-					InputStreamReader isr = null;
-					try {
-						isr = new InputStreamReader(fis, "UTF-8");
-					} catch (UnsupportedEncodingException e) {
-						isr = null;
-						e.printStackTrace();
-					}
-					if (isr != null) {
-						BufferedReader br = new BufferedReader(isr);
-						String request = null;
+			if (!sQueue.isEmpty()) {
+				if (sQueueFile == null) {
+					sQueueFile = new File(sQueueFileName);
+					if (!sQueueFile.exists()) {
 						try {
-							while ((request = br.readLine()) != null) {
-								// process the request
-								try {
-									HydraRequest hydraRequest = new HydraRequest((JSONObject) (new JSONParser()).parse(request));
-									//TODO: request could be long running, so launch threads
-									//TODO: remove this request from the queue
-									//TODO: if the request fails, re-queue it, but beware of hysteresis
-									
-									// execute, select, update, insert, delete
-									if (ACTION_ABOUT.equals(hydraRequest.action) && (hydraRequest.database.length() == 0))
-										HydraService.getDatabases();
-									else if (hydraRequest.database != null) {
-										if (ACTION_ABOUT.equals(hydraRequest.action))
-											HydraService.getDatabase(hydraRequest.database);
-										else {
-											DatabaseConnection databaseConnection = null;
-											try {
-												databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
-											} catch (Exception e) {
-												e.printStackTrace();
-											}
-											if (databaseConnection != null) {
-												if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.statement.length() > 0))
-													databaseConnection.execute(hydraRequest.statement);
-												else if (ACTION_QUERY.equals(hydraRequest.action) && (hydraRequest.columns.length > 0))
-													databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection);
-												else if (ACTION_UPDATE.equals(hydraRequest.action) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
-													databaseConnection.update(hydraRequest.target, hydraRequest.columns, hydraRequest.values, hydraRequest.selection);
-												else if (ACTION_INSERT.equals(hydraRequest.action) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
-													databaseConnection.insert(hydraRequest.target, hydraRequest.columns, hydraRequest.values);
-												else if (ACTION_DELETE.equals(hydraRequest.action))
-													databaseConnection.delete(hydraRequest.target, hydraRequest.selection);
-												else if (ACTION_SUBROUTINE.equals(hydraRequest.action) && (hydraRequest.values.length > 0))
-													databaseConnection.subroutine(hydraRequest.target, hydraRequest.values);
-												//TODO: update the queue file
-
-												// release the connection
-												databaseConnection.release();
-											}
-										}
-									}
-								} catch (ParseException e) {
-									e.printStackTrace();
-								}
-							}
+							if (!sQueueFile.createNewFile())
+								sQueueFile = null;
+						} catch (IOException e) {
+							sQueueFile = null;
+							e.printStackTrace();
+						}
+					} else
+						sQueueFile.delete(); // avoid a phantom queue
+				}
+				if (sQueueFile != null) {
+					FileWriter fw = null;
+					try {
+						fw = new FileWriter(sQueueFile, true);
+					} catch (IOException e) {
+						fw = null;
+						e.printStackTrace();
+					}
+					if (fw != null) {
+						PrintWriter pw = new PrintWriter(fw);
+						for (String s : sQueue) {
+							pw.println(s);
+							writeLog("write queue: " + s);
+						}
+						pw.close();
+						try {
+							fw.close();
 						} catch (IOException e) {
 							e.printStackTrace();
 						}
@@ -427,4 +363,87 @@ public class HydraService {
 		}
 	}
 
+	protected static void queueRequest(String request) {
+		synchronized (sQueueLock) {
+			sQueue.add(request);
+			writeLog("queue: " + request);
+			// start the queue thread
+			if (sQueueThread == null) {
+				sQueueThread = new QueueThread(mQueueRetryInterval);
+				sQueueThread.start();
+			}
+		}
+	}
+
+	protected static boolean readQueue() {
+		if (sQueueFile == null) {
+			sQueueFile = new File(sQueueFileName);
+			if (!sQueueFile.exists())
+				sQueueFile = null;
+		}
+		if (sQueueFile != null) {
+			FileInputStream fis = null;
+			try {
+				fis = new FileInputStream(sQueueFile);
+			} catch (FileNotFoundException e) {
+				fis = null;
+				e.printStackTrace();
+			}
+			if (fis != null) {
+				InputStreamReader isr = null;
+				try {
+					isr = new InputStreamReader(fis, "UTF-8");
+				} catch (UnsupportedEncodingException e) {
+					isr = null;
+					e.printStackTrace();
+				}
+				if (isr != null) {
+					BufferedReader br = new BufferedReader(isr);
+					String request = null;
+					try {
+						request = br.readLine();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					while (request != null) {
+						writeLog("read queue: " + request);
+						synchronized (sQueueLock) {
+							sQueue.add(request);
+						}
+						try {
+							request = br.readLine();
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+					}
+				}
+			}
+		}
+		return hasQueue();
+	}
+	
+	protected static boolean hasQueue() {
+		synchronized (sQueueLock) {
+			return !sQueue.isEmpty();
+		}
+	}
+	
+	protected static ArrayList<String> getQueue() {
+		synchronized (sQueueLock) {
+			ArrayList<String> queue = sQueue;
+			sQueue.clear();
+			return queue;
+		}
+	}
+	
+	protected static boolean stopQueueThread() {
+		synchronized (sQueueLock) {
+			if (sQueueThread != null) {
+				sQueueThread.shutdown();
+				sQueueThread = null;
+				return true;
+			} else
+				return false;
+		}
+	}
 }

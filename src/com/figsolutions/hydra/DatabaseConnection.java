@@ -5,7 +5,7 @@ import org.json.simple.JSONObject;
 public class DatabaseConnection {
 	
 	protected String mHostName;
-	protected String mHostPort;
+	protected int mHostPort;
 	protected String mAccountPath;
 	protected String mUsername;
 	protected String mPassword;
@@ -14,7 +14,7 @@ public class DatabaseConnection {
 	protected String mSQLENVINIT;
 	protected boolean mLock;
 	
-	public DatabaseConnection(String hostName, String hostPort, String accountPath, String username, String password) {
+	public DatabaseConnection(String hostName, int hostPort, String accountPath, String username, String password) {
 		mHostName = hostName;
 		mHostPort = hostPort;
 		mAccountPath = accountPath;
@@ -22,7 +22,7 @@ public class DatabaseConnection {
 		mPassword = password;
 	}
 
-	public DatabaseConnection(String hostName, String hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
+	public DatabaseConnection(String hostName, int hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
 		mHostName = hostName;
 		mHostPort = hostPort;
 		mAccountPath = accountPath;

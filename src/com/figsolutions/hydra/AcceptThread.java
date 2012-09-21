@@ -5,17 +5,19 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 
-public class AcceptThread implements Runnable {
+public class AcceptThread extends Thread {
 	
 	private int mListenPort = 9001;
-	private int mClientThreadSize = 1;
+	public static final int DEFAULT_CONNECTIONS = -1;
+	private int mConnections;
 	private ArrayList<ClientThread> mClientThreads = new ArrayList<ClientThread>();
 	private String mPassphrase;
 	private String mSalt;
+	private boolean mKeepAlive = true;
 
-	public AcceptThread(int listenPort, int clientThreadSize, String passphrase, String salt) {
+	public AcceptThread(int listenPort, int connections, String passphrase, String salt) {
 		mListenPort = listenPort;
-		mClientThreadSize = clientThreadSize;
+		mConnections = connections;
 		mPassphrase = passphrase;
 		mSalt = salt;
 	}
@@ -30,7 +32,6 @@ public class AcceptThread implements Runnable {
 
 	@Override
 	public void run() {
-		boolean listening = true;
 		ServerSocket socket = null;
 		
 		// bind the port
@@ -44,11 +45,11 @@ public class AcceptThread implements Runnable {
 		
 		if (socket != null) {
 			// wait for connection requests
-			while (listening) {
+			while (mKeepAlive) {
 				try {
 					HydraService.writeLog("listening...");
 					Socket client = socket.accept();
-					if (mClientThreads.size() < mClientThreadSize) {
+					if ((mConnections == DEFAULT_CONNECTIONS) || (mClientThreads.size() < mConnections)) {
 						ClientThread clientThread = new ClientThread(client, mClientThreads.size(), mPassphrase, mSalt);
 						mClientThreads.add(clientThread);
 						clientThread.start();
@@ -67,6 +68,10 @@ public class AcceptThread implements Runnable {
 				HydraService.writeLog(e.getMessage());
 			}
 		}
+	}
+
+	protected void shutdown() {
+		mKeepAlive = false;
 	}
 
 }
