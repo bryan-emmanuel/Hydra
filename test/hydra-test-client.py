@@ -105,13 +105,12 @@ def main():
 			print ''
 			for r in result:
 				print r
-		if (errors == ''):
-			print ''
-			action = raw_input('Action:')
-		else:
+		if (errors != ''):
 			for error in errors:
 				print error
 			action = ''
+		print ''
+		action = raw_input('Action:')
 	
 	s.close()
 	return 0

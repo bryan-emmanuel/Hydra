@@ -95,7 +95,7 @@ public class HydraRequest {
 			valArr.add(s);
 		request.put(PARAM_VALUES, valArr);
 		request.put(PARAM_SELECTION, selection);
-		request.put(PARAM_QUEUEABLE, queueable);
+		request.put(PARAM_QUEUEABLE, Boolean.toString(queueable));
 		return request.toJSONString();
 	}
 

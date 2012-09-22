@@ -26,8 +26,6 @@ import static com.piusvelte.hydra.ClientThread.ACTION_QUERY;
 import static com.piusvelte.hydra.ClientThread.ACTION_SUBROUTINE;
 import static com.piusvelte.hydra.ClientThread.ACTION_UPDATE;
 
-import java.util.ArrayList;
-
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -45,10 +43,11 @@ public class QueueThread extends Thread {
 	@Override
 	public void run() {
 		// sub-queue the requests
-		while (mKeepAlive && HydraService.hasQueue()) {
-			ArrayList<String> queue = HydraService.getQueue();
-			while (mKeepAlive && !queue.isEmpty()) {
-				String request = queue.remove(0);
+		while (mKeepAlive) {
+			String request = HydraService.dequeueRequest();
+			// keep track of the beginning of the queue
+			String firstRequeuedRequest = null;
+			while (mKeepAlive && (request != null) && (!request.equals(firstRequeuedRequest))) {
 				HydraService.writeLog("process queue: " + request);
 				// process the request
 				HydraRequest hydraRequest = null;
@@ -67,8 +66,11 @@ public class QueueThread extends Thread {
 					}
 					if (databaseConnection == null) {
 						// still not available, re-queue
-						if (hydraRequest.queueable)
-							HydraService.queueRequest(hydraRequest.getRequest());
+						if (hydraRequest.queueable) {
+							if (firstRequeuedRequest == null)
+								firstRequeuedRequest = hydraRequest.getRequest();
+							HydraService.requeueRequest(hydraRequest.getRequest());
+						}
 					} else {
 						if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
 							databaseConnection.execute(hydraRequest.target);
@@ -84,13 +86,21 @@ public class QueueThread extends Thread {
 							databaseConnection.subroutine(hydraRequest.target, hydraRequest.values);
 						// release the connection
 						databaseConnection.release();
+						// successfully processed, remove from the queue
+						HydraService.requeueRequest(null);
 					}
 				}
+				request = HydraService.dequeueRequest();
 			}
-			try {
-				Thread.sleep(mQueueRetryInterval);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+			// was anything requeued, else shutdown
+			if (firstRequeuedRequest == null)
+				mKeepAlive = false;
+			else {
+				try {
+					Thread.sleep(mQueueRetryInterval);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 			}
 		}
 		HydraService.stopQueueThread();

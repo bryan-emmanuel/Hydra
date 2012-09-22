@@ -23,6 +23,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -87,10 +88,8 @@ public class HydraService {
 	protected static final String DB_TYPE_ORACLE = "oracle";
 	protected static final String DB_TYPE_POSTGRESQL = "postgresql";
 	private static final String sQueueFileName = "queue.txt";
-	private static File sQueueFile = null;
 	private static int[] sQueueLock = new int[0];// small lock object
 	private static final String sHydraConfFileName = "hydra.conf";
-	private static ArrayList<String> sQueue = new ArrayList<String>();
 	private static QueueThread sQueueThread = null;
 	private static int mQueueRetryInterval;
 
@@ -203,15 +202,10 @@ public class HydraService {
 			//		}
 
 			// check the queue
-			
-			if (readQueue()) {
-				sQueueThread = new QueueThread(mQueueRetryInterval);
-				sQueueThread.start();
-			}
-			
+			(sQueueThread = new QueueThread(mQueueRetryInterval)).start();
+
 			// listen for connections
-			sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt);
-			sAcceptThread.start();
+			(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt)).start();
 			try {
 				sAcceptThread.join(); // blocking method
 			} catch (InterruptedException e) {
@@ -220,7 +214,6 @@ public class HydraService {
 			if (sQueueThread != null)
 				stopQueueThread();
 			sAcceptThread.shutdown();
-			writeQueue();
 		} else
 			System.out.println("unable to read " + sHydraConfFileName);
 	}
@@ -338,53 +331,44 @@ public class HydraService {
 		return hexString.toString();
 	}
 
-	// request queueing
-	// this is in case a database connection becomes unavailable
-	protected static void writeQueue() {
+	protected static File getFile(String name) {
+		File f = new File(name);
+		if (!f.exists()) {
+			try {
+				if (!f.createNewFile())
+					f = null;
+			} catch (IOException e) {
+				f = null;
+				e.printStackTrace();
+			}
+		}
+		return f;
+	}
+
+	protected static boolean queueRequest(String request) {
+		boolean queued = false;
 		synchronized (sQueueLock) {
-			if (!sQueue.isEmpty()) {
-				if (sQueueFile == null) {
-					sQueueFile = new File(sQueueFileName);
-					if (!sQueueFile.exists()) {
-						try {
-							if (!sQueueFile.createNewFile())
-								sQueueFile = null;
-						} catch (IOException e) {
-							sQueueFile = null;
-							e.printStackTrace();
-						}
-					} else
-						sQueueFile.delete(); // avoid a phantom queue
+			File queueFile = getFile(sQueueFileName);
+			if (queueFile != null) {
+				FileWriter fw = null;
+				try {
+					fw = new FileWriter(queueFile, true);
+				} catch (IOException e) {
+					fw = null;
+					e.printStackTrace();
 				}
-				if (sQueueFile != null) {
-					FileWriter fw = null;
+				if (fw != null) {
+					PrintWriter pw = new PrintWriter(fw);
+					pw.println(request);
+					pw.close();
+					queued = true;
 					try {
-						fw = new FileWriter(sQueueFile, true);
+						fw.close();
 					} catch (IOException e) {
-						fw = null;
 						e.printStackTrace();
-					}
-					if (fw != null) {
-						PrintWriter pw = new PrintWriter(fw);
-						for (String s : sQueue) {
-							pw.println(s);
-							writeLog("write queue: " + s);
-						}
-						pw.close();
-						try {
-							fw.close();
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
 					}
 				}
 			}
-		}
-	}
-
-	protected static void queueRequest(String request) {
-		synchronized (sQueueLock) {
-			sQueue.add(request);
 			writeLog("queue: " + request);
 			// start the queue thread
 			if (sQueueThread == null) {
@@ -392,69 +376,93 @@ public class HydraService {
 				sQueueThread.start();
 			}
 		}
+		return queued;
 	}
 
-	protected static boolean readQueue() {
-		if (sQueueFile == null) {
-			sQueueFile = new File(sQueueFileName);
-			if (!sQueueFile.exists())
-				sQueueFile = null;
-		}
-		if (sQueueFile != null) {
-			FileInputStream fis = null;
-			try {
-				fis = new FileInputStream(sQueueFile);
-			} catch (FileNotFoundException e) {
-				fis = null;
-				e.printStackTrace();
-			}
-			if (fis != null) {
-				InputStreamReader isr = null;
+	protected static String dequeueRequest() {
+		synchronized (sQueueLock) {
+			File queueFile = getFile(sQueueFileName);
+			if (queueFile != null) {
+				FileReader fr = null;
 				try {
-					isr = new InputStreamReader(fis, "UTF-8");
-				} catch (UnsupportedEncodingException e) {
-					isr = null;
+					fr = new FileReader(queueFile);
+				} catch (FileNotFoundException e) {
 					e.printStackTrace();
 				}
-				if (isr != null) {
-					BufferedReader br = new BufferedReader(isr);
+				if (fr != null) {
+					BufferedReader br = new BufferedReader(fr);
 					String request = null;
 					try {
 						request = br.readLine();
 					} catch (IOException e) {
 						e.printStackTrace();
 					}
-					while (request != null) {
-						writeLog("read queue: " + request);
-						synchronized (sQueueLock) {
-							sQueue.add(request);
-						}
+					return request;
+				} else
+					return null;
+			} else
+				return null;
+		}
+	}
+	
+	protected static void requeueRequest(String request) {
+		ArrayList<String> requests = new ArrayList<String>();
+		synchronized (sQueueLock) {
+			File queueFile = getFile(sQueueFileName);
+			if (queueFile != null) {
+				FileReader fr = null;
+				try {
+					fr = new FileReader(queueFile);
+				} catch (FileNotFoundException e) {
+					e.printStackTrace();
+				}
+				if (fr != null) {
+					BufferedReader br = new BufferedReader(fr);
+					String r = null;
+					try {
+						// skip the first line as it's been processed
+						br.readLine();
+						r = br.readLine();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					while (r != null) {
+						requests.add(r);
 						try {
-							request = br.readLine();
+							r = br.readLine();
 						} catch (IOException e) {
 							e.printStackTrace();
+						}
+					}
+					if (request != null)
+						requests.add(request);
+					if (requests.isEmpty())
+						queueFile.delete();
+					else {
+						FileWriter fw = null;
+						try {
+							fw = new FileWriter(queueFile);
+						} catch (IOException e) {
+							fw = null;
+							e.printStackTrace();
+						}
+						if (fw != null) {
+							PrintWriter pw = new PrintWriter(fw);
+							for (String s : requests)
+								pw.println(s);
+							pw.close();
+							try {
+								fw.close();
+							} catch (IOException e) {
+								e.printStackTrace();
+							}
 						}
 					}
 				}
 			}
 		}
-		return hasQueue();
 	}
-	
-	protected static boolean hasQueue() {
-		synchronized (sQueueLock) {
-			return !sQueue.isEmpty();
-		}
-	}
-	
-	protected static ArrayList<String> getQueue() {
-		synchronized (sQueueLock) {
-			ArrayList<String> queue = sQueue;
-			sQueue.clear();
-			return queue;
-		}
-	}
-	
+
 	protected static boolean stopQueueThread() {
 		synchronized (sQueueLock) {
 			if (sQueueThread != null) {
