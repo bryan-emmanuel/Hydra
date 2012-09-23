@@ -42,8 +42,8 @@ public class UnidataConnection extends DatabaseConnection {
 	private static final String SIMPLE_QUERY_FORMAT = "SELECT %s";
 	private static final String SELECTION_QUERY_FORMAT = "SELECT %s WITH %s";
 
-	public UnidataConnection(String hostName, int hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
-		super(hostName, hostPort, accountPath, username, password, dasu, dasp, sqlenvinit);
+	public UnidataConnection(HydraService hydraService, String hostName, int hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
+		super(hydraService, hostName, hostPort, accountPath, username, password, dasu, dasp, sqlenvinit);
 	}
 
 	@Override
@@ -95,10 +95,10 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", uCommand.response());
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} catch (UniCommandException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		}
 		response.put("errors", errors);
 		return response;
@@ -134,23 +134,23 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} catch (UniCommandException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} catch (UniFileException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} catch (UniSelectListException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} finally {
 			if (uFile != null) {
 				try {
 					uFile.close();
 				} catch (UniFileException e) {
 					errors.add(e.getMessage());
-					HydraService.writeLog(e.getMessage());
+					mHydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -196,23 +196,23 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} catch (UniCommandException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} catch (UniFileException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} catch (UniSelectListException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} finally {
 			if (uFile != null) {
 				try {
 					uFile.close();
 				} catch (UniFileException e) {
 					errors.add(e.getMessage());
-					HydraService.writeLog(e.getMessage());
+					mHydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -248,10 +248,10 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", vals);
 		} catch (UniSessionException e) {
 			e.printStackTrace();
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		} catch (UniSubroutineException e) {
 			e.printStackTrace();
-			HydraService.writeLog(e.getMessage());
+			mHydraService.writeLog(e.getMessage());
 		}
 		return response;
 	}

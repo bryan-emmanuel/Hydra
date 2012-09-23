@@ -32,8 +32,10 @@ public class DatabaseConnection {
 	protected String mDASP;
 	protected String mSQLENVINIT;
 	protected boolean mLock;
+	protected HydraService mHydraService;
 	
-	public DatabaseConnection(String hostName, int hostPort, String accountPath, String username, String password) {
+	public DatabaseConnection(HydraService hydraService, String hostName, int hostPort, String accountPath, String username, String password) {
+		mHydraService = hydraService;
 		mHostName = hostName;
 		mHostPort = hostPort;
 		mAccountPath = accountPath;
@@ -41,7 +43,8 @@ public class DatabaseConnection {
 		mPassword = password;
 	}
 
-	public DatabaseConnection(String hostName, int hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
+	public DatabaseConnection(HydraService hydraService, String hostName, int hostPort, String accountPath, String username, String password, String dasu, String dasp, String sqlenvinit) {
+		mHydraService = hydraService;
 		mHostName = hostName;
 		mHostPort = hostPort;
 		mAccountPath = accountPath;
@@ -55,7 +58,7 @@ public class DatabaseConnection {
 	public boolean connect() throws Exception {
 		if (mLock)
 			throw new Exception("connection locked");
-		HydraService.writeLog("get existing connection to: " + mAccountPath);
+		mHydraService.writeLog("get existing connection to: " + mAccountPath);
 		mLock = true;
 		return mLock;
 	}
