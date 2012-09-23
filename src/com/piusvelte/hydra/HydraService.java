@@ -26,7 +26,6 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -36,6 +35,7 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Properties;
 import java.util.Set;
 import java.util.logging.FileHandler;
 import java.util.logging.Logger;
@@ -43,8 +43,6 @@ import java.util.logging.SimpleFormatter;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 // windows service setup:
 // requires Windows Resource Kit
@@ -77,7 +75,7 @@ public class HydraService {
 	private static final String sSQLENVINIT = "SQLENVINIT";
 	private static String sConnectionPassphrase;
 	private static String sSalt;
-	private static final String sLogFile = "hydra.log";
+	private static String sLogFile = "hydra.log";
 	protected static FileHandler sLogFileHandler;
 	protected static Logger sLogger;
 	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
@@ -87,13 +85,28 @@ public class HydraService {
 	protected static final String DB_TYPE_MSSQL = "mssql";
 	protected static final String DB_TYPE_ORACLE = "oracle";
 	protected static final String DB_TYPE_POSTGRESQL = "postgresql";
-	private static final String sQueueFileName = "queue.txt";
+	private static String sQueueFileName = "queue.txt";
 	private static int[] sQueueLock = new int[0];// small lock object
-	private static final String sHydraConfFileName = "hydra.conf";
+	private static String sHydraProperties = "hydra.properties";
 	private static QueueThread sQueueThread = null;
 	private static int mQueueRetryInterval;
 
 	public static void main(String[] args) {
+
+		if (args != null) {
+			for (String arg : args) {
+				if (arg.length() > 2) {
+					String key = arg.substring(0, 2);
+					String value = arg.substring(2);
+					if (key.equals("-p"))
+						sHydraProperties = value;
+					else if (key.equals("-l"))
+						sLogFile = value;
+					else if (key.equals("-q"))
+						sQueueFileName = value;
+				}
+			}
+		}
 
 		try {
 			sLogFileHandler = new FileHandler(sLogFile);
@@ -111,7 +124,7 @@ public class HydraService {
 			writeLog("Hydra starting");
 		}
 
-		File f = new File(sHydraConfFileName);
+		File f = new File(sHydraProperties);
 		if (!f.exists()) {
 			try {
 				if (!f.createNewFile())
@@ -123,99 +136,84 @@ public class HydraService {
 
 		if (f != null) {
 			int listenPort = 9001;
-			int connections = AcceptThread.DEFAULT_CONNECTIONS; // default unlimiteds
+			int connections = AcceptThread.DEFAULT_CONNECTIONS; // default unlimited
 			mQueueRetryInterval = QueueThread.DEFAULT_QUEUERETRYINTERVAL;
-			FileInputStream fis;
+
+			FileInputStream fis = null;
 			try {
-				writeLog("parsing conf file");
-				fis = new FileInputStream(sHydraConfFileName);
-				InputStreamReader isr = new InputStreamReader(fis, "UTF-8");
-				char[] buffer = new char[1024];
-				StringBuilder content = new StringBuilder();
-				int read = 0;
-				while ((read = isr.read(buffer)) != -1)
-					content.append(buffer, 0, read);
-				JSONParser parser = new JSONParser();
-				JSONObject conf = (JSONObject) parser.parse(content.toString());
-				sConnectionPassphrase = (String) conf.get(sPassphrase);
-				if (conf.containsKey(sPort))
-					listenPort = Integer.parseInt((String) conf.get(sPort));
-				if (conf.containsKey(sConnections))
-					connections = Integer.parseInt((String) conf.get(sConnections));
-				if (conf.containsKey(sQueueRetryInterval))
-					mQueueRetryInterval = Integer.parseInt((String) conf.get(sQueueRetryInterval));
-				JSONArray databases = (JSONArray) conf.get(sDatabases);
-				for (int i = 0, l = databases.size(); i < l; i++) {
-					JSONObject databaseIn = (JSONObject) databases.get(i);
-					String alias = (String) databaseIn.get(sAlias);
-					HashMap<String, String> database = new HashMap<String, String>();
-					database.put(sType, (String) databaseIn.get(sType));
-					database.put(sDatabase, (String) databaseIn.get(sDatabase));
-					database.put(sHost, (String) databaseIn.get(sHost));
-					database.put(sPort, (String) databaseIn.get(sPort));
-					database.put(sUsername, (String) databaseIn.get(sUsername));
-					database.put(sPassword, (String) databaseIn.get(sPassword));
-					database.put(sConnections, (String) databaseIn.get(sConnections));
-					database.put(sDASU, (String) databaseIn.get(sDASU));
-					database.put(sDASP, (String) databaseIn.get(sDASP));
-					database.put(sSQLENVINIT, (String) databaseIn.get(sSQLENVINIT));
-					sDatabaseSettings.put(alias, database);
-					sDatabaseConnections.put(alias, new ArrayList<DatabaseConnection>());
+				fis = new FileInputStream(f);
+			} catch (FileNotFoundException e) {
+				writeLog(e.getMessage());
+				fis = null;
+			}
+			if (fis != null) {
+				Properties properties = new Properties();
+				try {
+					properties.load(fis);
+				} catch (IOException e) {
+					properties = null;
+					e.printStackTrace();
 				}
-			} catch (FileNotFoundException e1) {
-				writeLog(e1.getMessage());
-			} catch (UnsupportedEncodingException e) {
-				writeLog(e.getMessage());
-			} catch (ParseException e) {
-				writeLog(e.getMessage());
-			} catch (IOException e) {
-				writeLog(e.getMessage());
-			}
+				if (properties != null) {
+					sConnectionPassphrase = properties.getProperty(sPassphrase);
+					if (properties.containsKey(sPort))
+						listenPort = Integer.parseInt(properties.getProperty(sPort));
+					if (properties.containsKey(sConnections))
+						connections = Integer.parseInt(properties.getProperty(sConnections));
+					if (properties.containsKey(sQueueRetryInterval))
+						mQueueRetryInterval = Integer.parseInt(properties.getProperty(sQueueRetryInterval));
+					if (properties.containsKey(sDatabases)) {
+						String[] databaseAliases = properties.getProperty(sDatabases).split(",");
+						String[] databaseProperties = new String[]{sType, sDatabase, sHost, sPort, sUsername, sPassword, sConnections, sDASU, sDASP, sSQLENVINIT};
+						for (String databaseAlias : databaseAliases) {
+							HashMap<String, String> database = new HashMap<String, String>();
+							for (String databaseProperty : databaseProperties)
+								database.put(databaseProperty, properties.getProperty(databaseAlias + "." + databaseProperty, ""));
+							sDatabaseSettings.put(databaseAlias, database);
+							sDatabaseConnections.put(databaseAlias, new ArrayList<DatabaseConnection>());
+						}
+					}
+					try {
+						fis.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 
-			// generate a salt
-			String salt = new BigInteger(256, new SecureRandom()).toString(16);
-			MessageDigest md;
-			try {
-				md = MessageDigest.getInstance("SHA-256");
-				md.update(salt.getBytes("UTF-8"));
-				sSalt = new BigInteger(1, md.digest()).toString(16);
-				if (sSalt.length() > 64) {
-					sSalt = sSalt.substring(0, 64);
-				}
-			} catch (NoSuchAlgorithmException e1) {
-				e1.printStackTrace();
-			} catch (UnsupportedEncodingException e) {
-				e.printStackTrace();
-			}
+					// generate a salt
+					String salt = new BigInteger(256, new SecureRandom()).toString(16);
+					MessageDigest md;
+					try {
+						md = MessageDigest.getInstance("SHA-256");
+						md.update(salt.getBytes("UTF-8"));
+						sSalt = new BigInteger(1, md.digest()).toString(16);
+						if (sSalt.length() > 64) {
+							sSalt = sSalt.substring(0, 64);
+						}
+					} catch (NoSuchAlgorithmException e1) {
+						e1.printStackTrace();
+					} catch (UnsupportedEncodingException e) {
+						e.printStackTrace();
+					}
 
-			// for writing a conf file...
-			//		FileOutputStream fos;
-			//		try {
-			//			fos = new FileOutputStream("hydra.properties");
-			//			OutputStreamWriter out = new OutputStreamWriter(fos, "UTF-8");
-			//		} catch (FileNotFoundException e) {
-			//			// TODO Auto-generated catch block
-			//			e.printStackTrace();
-			//		} catch (UnsupportedEncodingException e) {
-			//			// TODO Auto-generated catch block
-			//			e.printStackTrace();
-			//		}
+					// check the queue
+					(sQueueThread = new QueueThread(mQueueRetryInterval)).start();
 
-			// check the queue
-			(sQueueThread = new QueueThread(mQueueRetryInterval)).start();
-
-			// listen for connections
-			(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt)).start();
-			try {
-				sAcceptThread.join(); // blocking method
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-			if (sQueueThread != null)
-				stopQueueThread();
-			sAcceptThread.shutdown();
+					// listen for connections
+					(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt)).start();
+					try {
+						sAcceptThread.join(); // blocking method
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					if (sQueueThread != null)
+						stopQueueThread();
+					sAcceptThread.shutdown();
+				} else
+					System.out.println("unable to load " + sHydraProperties);
+			} else
+				System.out.println("unable to read " + sHydraProperties);
 		} else
-			System.out.println("unable to read " + sHydraConfFileName);
+			System.out.println("unable to create " + sHydraProperties);
 	}
 
 	protected static void writeLog(String message) {
@@ -397,6 +395,16 @@ public class HydraService {
 					} catch (IOException e) {
 						e.printStackTrace();
 					}
+					try {
+						br.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					try {
+						fr.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 					return request;
 				} else
 					return null;
@@ -404,7 +412,7 @@ public class HydraService {
 				return null;
 		}
 	}
-	
+
 	protected static void requeueRequest(String request) {
 		ArrayList<String> requests = new ArrayList<String>();
 		synchronized (sQueueLock) {
@@ -457,6 +465,16 @@ public class HydraService {
 								e.printStackTrace();
 							}
 						}
+					}
+					try {
+						br.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					try {
+						fr.close();
+					} catch (IOException e) {
+						e.printStackTrace();
 					}
 				}
 			}
