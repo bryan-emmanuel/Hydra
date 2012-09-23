@@ -38,8 +38,8 @@ public class PostgreSQLConnection extends DatabaseConnection {
 	private static final String UPDATE_QUERY = "UPDATE %s SET %s WHERE %s";
 	private static final String DELETE_QUERY = "DELETE FROM %s WHERE %s";
 
-	public PostgreSQLConnection(HydraService hydraService, String hostName, int hostPort, String accountPath, String username, String password) {
-		super(hydraService, hostName, hostPort, accountPath, username, password);
+	public PostgreSQLConnection(String hostName, int hostPort, String accountPath, String username, String password) {
+		super(hostName, hostPort, accountPath, username, password);
 	}
 
 	@Override
@@ -89,7 +89,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			mHydraService.writeLog(e.getMessage());
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -97,14 +97,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						mHydraService.writeLog(e.getMessage());
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					mHydraService.writeLog(e.getMessage());
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -143,7 +143,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			mHydraService.writeLog(e.getMessage());
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -151,14 +151,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						mHydraService.writeLog(e.getMessage());
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					mHydraService.writeLog(e.getMessage());
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -205,7 +205,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			mHydraService.writeLog(e.getMessage());
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -213,14 +213,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						mHydraService.writeLog(e.getMessage());
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					mHydraService.writeLog(e.getMessage());
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -261,7 +261,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			mHydraService.writeLog(e.getMessage());
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -269,14 +269,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						mHydraService.writeLog(e.getMessage());
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					mHydraService.writeLog(e.getMessage());
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -309,7 +309,7 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
-			mHydraService.writeLog(e.getMessage());
+			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (s != null) {
 				if (rs != null) {
@@ -317,14 +317,14 @@ public class PostgreSQLConnection extends DatabaseConnection {
 						rs.close();
 					} catch (SQLException e) {
 						errors.add(e.getMessage());
-						mHydraService.writeLog(e.getMessage());
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
 					s.close();
 				} catch (SQLException e) {
 					errors.add(e.getMessage());
-					mHydraService.writeLog(e.getMessage());
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}

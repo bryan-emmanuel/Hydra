@@ -33,10 +33,8 @@ public class AcceptThread extends Thread {
 	private String mPassphrase;
 	private String mSalt;
 	private boolean mKeepAlive = true;
-	private HydraService mHydraService;
 
-	public AcceptThread(HydraService hydraService, int listenPort, int connections, String passphrase, String salt) {
-		mHydraService = hydraService;
+	public AcceptThread(int listenPort, int connections, String passphrase, String salt) {
 		mListenPort = listenPort;
 		mConnections = connections;
 		mPassphrase = passphrase;
@@ -68,25 +66,25 @@ public class AcceptThread extends Thread {
 			// wait for connection requests
 			while (mKeepAlive) {
 				try {
-					mHydraService.writeLog("listening...");
+					HydraService.writeLog("listening...");
 					Socket client = socket.accept();
 					if ((mConnections == DEFAULT_CONNECTIONS) || (mClientThreads.size() < mConnections)) {
-						ClientThread clientThread = new ClientThread(mHydraService, client, mClientThreads.size(), mPassphrase, mSalt);
+						ClientThread clientThread = new ClientThread(client, mClientThreads.size(), mPassphrase, mSalt);
 						mClientThreads.add(clientThread);
 						clientThread.start();
-						mHydraService.writeLog("...start thread");
+						HydraService.writeLog("...start thread");
 					}
 				} catch (IOException e) {
-					mHydraService.writeLog(e.getMessage());
+					HydraService.writeLog(e.getMessage());
 				}
 			}
 			// close down
 			while (!mClientThreads.isEmpty())
-				mHydraService.removeClientThread(0);
+				HydraService.removeClientThread(0);
 			try {
 				socket.close();
 			} catch (IOException e) {
-				mHydraService.writeLog(e.getMessage());
+				HydraService.writeLog(e.getMessage());
 			}
 		}
 	}

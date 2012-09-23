@@ -57,15 +57,13 @@ public class ClientThread extends Thread {
 	protected static final String ACTION_DELETE = "delete";
 	protected static final String BAD_REQUEST = "bad request";
 
-	private HydraService mHydraService;
 	private int mClientIndex = 0;
 	private Socket mSocket;
 	private String mPassphrase;
 	private String mSalt;
 	private boolean mKeepAlive = true;
 
-	public ClientThread(HydraService hydraService, Socket socket, int clientIndex, String passphrase, String salt) {
-		mHydraService = hydraService;
+	public ClientThread(Socket socket, int clientIndex, String passphrase, String salt) {
 		mSocket = socket;
 		mClientIndex = clientIndex;
 		mPassphrase = passphrase;
@@ -81,7 +79,7 @@ public class ClientThread extends Thread {
 			out = mSocket.getOutputStream();
 			in = mSocket.getInputStream();
 		} catch (IOException e) {
-			mHydraService.writeLog(e.getMessage());
+			HydraService.writeLog(e.getMessage());
 		}
 		if ((out == null) || (in == null))
 			return;
@@ -96,7 +94,7 @@ public class ClientThread extends Thread {
 		// salt the password
 		String saltedPassphrase = null;
 		try {
-			saltedPassphrase = mHydraService.getHashString(mSalt + mPassphrase);
+			saltedPassphrase = HydraService.getHashString(mSalt + mPassphrase);
 		} catch (NoSuchAlgorithmException e) {
 			e.printStackTrace();
 		} catch (UnsupportedEncodingException e) {
@@ -130,13 +128,13 @@ public class ClientThread extends Thread {
 				e.printStackTrace();
 			}
 			while (mKeepAlive && (line != null) && (line.length() > 0)) {
-				mHydraService.writeLog("read:"+line);
+				HydraService.writeLog("read:"+line);
 				// get the request before auth for adding to the authentication
 				if (line.startsWith("{")) {
 					JSONObject request = null;
 					try {
 						request = (JSONObject) (new JSONParser().parse(line));
-						hydraRequest = new HydraRequest(mHydraService, request);
+						hydraRequest = new HydraRequest(request);
 					} catch (ParseException e) {
 						e.printStackTrace();
 					}
@@ -144,7 +142,7 @@ public class ClientThread extends Thread {
 					Uri request = null;
 					try {
 						request = new Uri(line);
-						hydraRequest = new HydraRequest(mHydraService, request);
+						hydraRequest = new HydraRequest(request);
 					} catch (MalformedURLException e) {
 						e.printStackTrace();
 					}
@@ -153,13 +151,13 @@ public class ClientThread extends Thread {
 					JSONObject response;
 					// execute, select, update, insert, delete
 					if (ACTION_ABOUT.equals(hydraRequest.action) && (hydraRequest.database.length() == 0))
-						response = mHydraService.getDatabases();
+						response = HydraService.getDatabases();
 					else if (hydraRequest.database != null) {
 						if (ACTION_ABOUT.equals(hydraRequest.action))
-							response = mHydraService.getDatabase(hydraRequest.database);
+							response = HydraService.getDatabase(hydraRequest.database);
 						else {
 							try {
-								databaseConnection = mHydraService.getDatabaseConnection(hydraRequest.database);
+								databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
 							} catch (Exception e) {
 								e.printStackTrace();
 							}
@@ -169,7 +167,7 @@ public class ClientThread extends Thread {
 								JSONArray errors = new JSONArray();
 								errors.add("no database connection");
 								if (hydraRequest.queueable) {
-									mHydraService.queueRequest(hydraRequest.getRequest());
+									HydraService.queueRequest(hydraRequest.getRequest());
 									errors.add("queued");
 								}
 								response.put("errors", errors);
@@ -207,7 +205,7 @@ public class ClientThread extends Thread {
 					challenge = System.currentTimeMillis();
 					response.put("challenge", Long.toString(challenge));
 
-					mHydraService.writeLog("response:"+response);
+					HydraService.writeLog("response:"+response);
 					try {
 						out.write((response.toString() + "\n").getBytes());
 					} catch (IOException e) {
@@ -223,7 +221,7 @@ public class ClientThread extends Thread {
 						out.write(response.toString().getBytes());
 					} catch (IOException e) {
 						mKeepAlive = false;
-						mHydraService.writeLog(e.getMessage());
+						HydraService.writeLog(e.getMessage());
 					}
 				}
 				try {
@@ -251,9 +249,9 @@ public class ClientThread extends Thread {
 		try {
 			mSocket.close();
 		} catch (IOException e) {
-			mHydraService.writeLog(e.getMessage());
+			HydraService.writeLog(e.getMessage());
 		}
-		mHydraService.removeClientThread(mClientIndex);
+		HydraService.removeClientThread(mClientIndex);
 	}
 
 	protected void shutdown() {

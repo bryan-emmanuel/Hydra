@@ -33,12 +33,10 @@ import org.json.simple.parser.ParseException;
 public class QueueThread extends Thread {
 
 	public static final int DEFAULT_QUEUERETRYINTERVAL = 300000;
-	private HydraService mHydraService;
 	protected int mQueueRetryInterval = DEFAULT_QUEUERETRYINTERVAL;
 	private boolean mKeepAlive = true;
 
-	public QueueThread(HydraService hydraService, int queueRetryInterval) {
-		mHydraService = hydraService;
+	public QueueThread(int queueRetryInterval) {
 		mQueueRetryInterval = queueRetryInterval;
 	}
 
@@ -46,23 +44,23 @@ public class QueueThread extends Thread {
 	public void run() {
 		// sub-queue the requests
 		while (mKeepAlive) {
-			String request = mHydraService.dequeueRequest();
+			String request = HydraService.dequeueRequest();
 			// keep track of the beginning of the queue
 			String firstRequeuedRequest = null;
 			while (mKeepAlive && (request != null) && (!request.equals(firstRequeuedRequest))) {
-				mHydraService.writeLog("process queue: " + request);
+				HydraService.writeLog("process queue: " + request);
 				// process the request
 				HydraRequest hydraRequest = null;
 				try {
-					hydraRequest = new HydraRequest(mHydraService, (JSONObject) (new JSONParser()).parse(request));
+					hydraRequest = new HydraRequest((JSONObject) (new JSONParser()).parse(request));
 				} catch (ParseException e) {
 					hydraRequest = null;
 					e.printStackTrace();
 				}
-				if ((hydraRequest != null) && (hydraRequest.database != null) && (!mHydraService.getDatabase(hydraRequest.database).isEmpty())) {
+				if ((hydraRequest != null) && (hydraRequest.database != null) && (!HydraService.getDatabase(hydraRequest.database).isEmpty())) {
 					DatabaseConnection databaseConnection = null;
 					try {
-						databaseConnection = mHydraService.getDatabaseConnection(hydraRequest.database);
+						databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
@@ -71,7 +69,7 @@ public class QueueThread extends Thread {
 						if (hydraRequest.queueable) {
 							if (firstRequeuedRequest == null)
 								firstRequeuedRequest = hydraRequest.getRequest();
-							mHydraService.requeueRequest(hydraRequest.getRequest());
+							HydraService.requeueRequest(hydraRequest.getRequest());
 						}
 					} else {
 						if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
@@ -89,11 +87,11 @@ public class QueueThread extends Thread {
 						// release the connection
 						databaseConnection.release();
 						// successfully processed, remove from the queue
-						mHydraService.requeueRequest(null);
+						HydraService.requeueRequest(null);
 					}
 				} else
-					mHydraService.requeueRequest(null); // bad request
-				request = mHydraService.dequeueRequest();
+					HydraService.requeueRequest(null); // bad request
+				request = HydraService.dequeueRequest();
 			}
 			// was anything requeued, else shutdown
 			if (firstRequeuedRequest == null)
@@ -106,7 +104,7 @@ public class QueueThread extends Thread {
 				}
 			}
 		}
-		mHydraService.stopQueueThread();
+		HydraService.stopQueueThread();
 	}
 
 	protected void shutdown() {

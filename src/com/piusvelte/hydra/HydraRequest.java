@@ -50,10 +50,8 @@ public class HydraRequest {
 	String auth = "";
 	String requestAuth = "";
 	boolean queueable = false;
-	private HydraService mHydraService;
 
-	HydraRequest(HydraService hydraService, JSONObject request) {
-		mHydraService = hydraService;
+	HydraRequest(JSONObject request) {
 		action = (String) request.get(PARAM_ACTION);
 		if (action == null)
 			action = "";
@@ -101,8 +99,7 @@ public class HydraRequest {
 		return request.toJSONString();
 	}
 
-	HydraRequest(HydraService hydraService, Uri request) {
-		mHydraService = hydraService;
+	HydraRequest(Uri request) {
 		String rawQuery = null;
 		action = request.getScheme();
 		database = request.getHost();
@@ -143,7 +140,7 @@ public class HydraRequest {
 						queueable = Boolean.parseBoolean(value);
 					else if (PARAM_AUTH.equals(key))
 						auth = value;
-					mHydraService.writeLog("param:"+key+"="+value);
+					HydraService.writeLog("param:"+key+"="+value);
 				} catch (UnsupportedEncodingException e) {
 					e.printStackTrace();
 				}
@@ -152,10 +149,10 @@ public class HydraRequest {
 	}
 
 	boolean authenticated(long challenge, String saltedPassphrase) {
-		mHydraService.writeLog("requestAuth: " + requestAuth);
+		HydraService.writeLog("requestAuth: " + requestAuth);
 		String passphrase;
 		try {
-			passphrase = mHydraService.getHashString(requestAuth + Long.toString(challenge) + saltedPassphrase);
+			passphrase = HydraService.getHashString(requestAuth + Long.toString(challenge) + saltedPassphrase);
 			if (passphrase.length() > 64)
 				passphrase = passphrase.substring(0, 64);
 			if (auth == null)

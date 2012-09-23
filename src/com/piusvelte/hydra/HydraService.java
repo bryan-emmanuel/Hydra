@@ -36,17 +36,20 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Properties;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.logging.FileHandler;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
 
+import org.apache.commons.daemon.Daemon;
+import org.apache.commons.daemon.DaemonContext;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-public class HydraService extends Thread {
+public class HydraService implements Daemon {
 
-	private AcceptThread sAcceptThread;
+	private static AcceptThread sAcceptThread = null;
 	private static final String sPassphrase = "passphrase";
 	private static final String sDatabases = "databases";
 	private static final String sAlias = "alias";
@@ -66,22 +69,24 @@ public class HydraService extends Thread {
 	protected static final String DB_TYPE_MSSQL = "mssql";
 	protected static final String DB_TYPE_ORACLE = "oracle";
 	protected static final String DB_TYPE_POSTGRESQL = "postgresql";
-	private String sConnectionPassphrase;
-	private String sSalt;
-	private String sLogFile = "hydra.log";
-	protected FileHandler sLogFileHandler;
-	protected Logger sLogger;
-	private HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
-	private HashMap<String, ArrayList<DatabaseConnection>> sDatabaseConnections = new HashMap<String, ArrayList<DatabaseConnection>>();
-	private String sQueueFileName = "queue.txt";
-	private int[] sQueueLock = new int[0];// small lock object
-	private String sHydraProperties = "hydra.properties";
-	private QueueThread sQueueThread = null;
-	private int mQueueRetryInterval;
-	private boolean mKeepAlive = true;
+	private static String sConnectionPassphrase;
+	private static String sSalt;
+	private static String sLogFile = "hydra.log";
+	protected static FileHandler sLogFileHandler;
+	protected static Logger sLogger;
+	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
+	private static HashMap<String, ArrayList<DatabaseConnection>> sDatabaseConnections = new HashMap<String, ArrayList<DatabaseConnection>>();
+	private static String sQueueFileName = "queue.txt";
+	private static int[] sQueueLock = new int[0];// small lock object
+	private static String sHydraProperties = "hydra.properties";
+	private static QueueThread sQueueThread = null;
+	private static int mQueueRetryInterval;
 
-	@Override
-	public void run() {
+	private static void initialize() {
+		
+		if (sAcceptThread != null)
+			return;
+		
 		try {
 			sLogFileHandler = new FileHandler(sLogFile);
 		} catch (SecurityException e) {
@@ -172,8 +177,12 @@ public class HydraService extends Thread {
 					startQueueThread();
 
 					// listen for connections
-					(sAcceptThread = new AcceptThread(this, listenPort, connections, sConnectionPassphrase, sSalt)).start();
-					while (mKeepAlive);
+					(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt)).start();
+					try {
+						sAcceptThread.join();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
 					if (sQueueThread != null)
 						stopQueueThread();
 					sAcceptThread.shutdown();
@@ -184,23 +193,15 @@ public class HydraService extends Thread {
 		} else
 			System.out.println("unable to create " + sHydraProperties);
 	}
-	
-	public void shutdown() {
-		mKeepAlive = false;
-	}
-	
-	public boolean isShutdown() {
-		return !mKeepAlive;
-	}
 
-	protected synchronized void writeLog(String message) {
+	protected static synchronized void writeLog(String message) {
 		if ((sLogFileHandler != null) && (sLogger != null))
 			sLogger.info(message);
 		else
 			System.out.println(message);
 	}
 
-	public synchronized DatabaseConnection getDatabaseConnection(String database) throws Exception {
+	public static synchronized DatabaseConnection getDatabaseConnection(String database) throws Exception {
 		// return an existing database connection, or spawn a new one if the pool isn't full
 		// check for existing connection
 		if (sDatabaseConnections.containsKey(database)) {
@@ -220,15 +221,15 @@ public class HydraService extends Thread {
 				String type = databaseSettings.get(sType);
 				int port = Integer.parseInt(databaseSettings.get(sPort));
 				if (DB_TYPE_UNIDATA.equals(type))
-					(databaseConnection = new UnidataConnection(this, databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), databaseSettings.get(sDASU), databaseSettings.get(sDASP), databaseSettings.get(sSQLENVINIT))).connect();
+					(databaseConnection = new UnidataConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword), databaseSettings.get(sDASU), databaseSettings.get(sDASP), databaseSettings.get(sSQLENVINIT))).connect();
 				else if (DB_TYPE_MSSQL.equals(type))
-					(databaseConnection = new MSSQLConnection(this, databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new MSSQLConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else if (DB_TYPE_ORACLE.equals(type))
-					(databaseConnection = new OracleConnection(this, databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new OracleConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else if (DB_TYPE_MYSQL.equals(type))
-					(databaseConnection = new MySQLConnection(this, databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new MySQLConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else if (DB_TYPE_POSTGRESQL.equals(type))
-					(databaseConnection = new PostgreSQLConnection(this, databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
+					(databaseConnection = new PostgreSQLConnection(databaseSettings.get(sHost), port, databaseSettings.get(sDatabase), databaseSettings.get(sUsername), databaseSettings.get(sPassword))).connect();
 				else
 					throw new Exception("unknown type:" + type);
 				connections.add(databaseConnection);
@@ -240,7 +241,7 @@ public class HydraService extends Thread {
 		return databaseConnection;
 	}
 
-	public synchronized void removeClientThread(int index) {
+	public static synchronized void removeClientThread(int index) {
 		int clients = sAcceptThread.removeClientThread(index);
 		// maintain atleast as many connections/database as client threads
 		for (String key : sDatabaseConnections.keySet()) {
@@ -265,7 +266,7 @@ public class HydraService extends Thread {
 	}
 
 	@SuppressWarnings("unchecked")
-	public synchronized JSONObject getDatabases() {
+	public static synchronized JSONObject getDatabases() {
 		JSONObject response = new JSONObject();
 		Set<String> databases = sDatabaseSettings.keySet();
 		JSONArray arr = new JSONArray();
@@ -277,7 +278,7 @@ public class HydraService extends Thread {
 	}
 
 	@SuppressWarnings("unchecked")
-	public synchronized JSONObject getDatabase(String database) {
+	public static synchronized JSONObject getDatabase(String database) {
 		JSONObject response = new JSONObject();
 		if (sDatabaseSettings.containsKey(database)) {
 			HashMap<String, String> databaseSettings = sDatabaseSettings.get(database);
@@ -292,7 +293,7 @@ public class HydraService extends Thread {
 		return response;
 	}
 
-	protected String getHashString(String str) throws NoSuchAlgorithmException, UnsupportedEncodingException {
+	protected static String getHashString(String str) throws NoSuchAlgorithmException, UnsupportedEncodingException {
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update(str.getBytes("UTF-8"));
 		StringBuffer hexString = new StringBuffer();
@@ -320,7 +321,7 @@ public class HydraService extends Thread {
 		return f;
 	}
 
-	protected boolean queueRequest(String request) {
+	protected static boolean queueRequest(String request) {
 		boolean queued = false;
 		synchronized (sQueueLock) {
 			File queueFile = getFile(sQueueFileName);
@@ -350,7 +351,7 @@ public class HydraService extends Thread {
 		return queued;
 	}
 
-	protected String dequeueRequest() {
+	protected static String dequeueRequest() {
 		synchronized (sQueueLock) {
 			File queueFile = getFile(sQueueFileName);
 			if (queueFile != null) {
@@ -386,7 +387,7 @@ public class HydraService extends Thread {
 		}
 	}
 
-	protected void requeueRequest(String request) {
+	protected static void requeueRequest(String request) {
 		ArrayList<String> requests = new ArrayList<String>();
 		synchronized (sQueueLock) {
 			File queueFile = getFile(sQueueFileName);
@@ -454,18 +455,17 @@ public class HydraService extends Thread {
 		}
 	}
 
-	protected void startQueueThread() {
+	protected static void startQueueThread() {
 		synchronized (sQueueLock) {
 			// start the queue thread
 			if (sQueueThread == null) {
-				sQueueThread = new QueueThread(this, mQueueRetryInterval);
-				System.out.println("***START QUEUE THREAD***");
+				sQueueThread = new QueueThread(mQueueRetryInterval);
 				sQueueThread.start();
 			}
 		}
 	}
 
-	protected boolean stopQueueThread() {
+	protected static boolean stopQueueThread() {
 		synchronized (sQueueLock) {
 			if (sQueueThread != null) {
 				sQueueThread.shutdown();
@@ -474,5 +474,64 @@ public class HydraService extends Thread {
 			} else
 				return false;
 		}
+	}
+
+	// daemon methods
+
+	// java entry point
+	public static void main(String[] args) {
+		initialize();
+
+		Scanner sc = new Scanner(System.in);
+		// wait until receive stop command from keyboard
+		System.out.printf("Enter 'stop' to halt: ");
+		while(!sc.nextLine().toLowerCase().equals("stop"));
+
+		shutdown();
+	}
+	
+	/**
+	 * Static methods called by prunsrv to start/stop
+	 * the Windows service.  Pass the argument "start"
+	 * to start the service, and pass "stop" to
+	 * stop the service.
+	 *
+	 * Taken lock, stock and barrel from Christopher Pierce's blog at http://blog.platinumsolutions.com/node/234
+	 *
+	 * @param args Arguments from prunsrv command line
+	 **/
+	public static void windowsService(String args[]) {
+		String cmd = "start";
+		if (args.length > 0)
+			cmd = args[0];
+
+		if ("start".equals(cmd))
+			initialize();
+		else
+			shutdown();
+	}
+
+	// Implementing the Daemon interface is not required for Windows but is for Linux
+	@Override
+	public void init(DaemonContext arg0) throws Exception {
+	}
+
+	@Override
+	public void start() {
+		initialize();
+	}
+
+	@Override
+	public void stop() {
+		shutdown();
+	}
+
+	@Override
+	public void destroy() {
+	}
+
+	public static void shutdown() {
+		if (sAcceptThread != null)
+			sAcceptThread.shutdown();
 	}
 }
