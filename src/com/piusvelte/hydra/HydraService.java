@@ -71,7 +71,7 @@ public class HydraService implements Daemon {
 	protected static final String DB_TYPE_POSTGRESQL = "postgresql";
 	private static String sConnectionPassphrase;
 	private static String sSalt;
-	private static String sLogFile = "hydra.log";
+	private static String sLogFile = "logs/hydra.log";
 	protected static FileHandler sLogFileHandler;
 	protected static Logger sLogger;
 	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
@@ -84,10 +84,10 @@ public class HydraService implements Daemon {
 	private static HydraService mHydraService = new HydraService();
 
 	private void initialize() {
-		
+
 		if (sAcceptThread != null)
 			return;
-		
+
 		try {
 			sLogFileHandler = new FileHandler(sLogFile);
 		} catch (SecurityException e) {
@@ -481,6 +481,21 @@ public class HydraService implements Daemon {
 
 	// java entry point
 	public static void main(String[] args) {
+
+		if (args != null) {
+			for (String arg : args) {
+				int eqIdx = arg.indexOf("=");
+				if (eqIdx != -1) {
+					String key = arg.substring(0, eqIdx);
+					String value = arg.substring(++eqIdx);
+					if (key.equals("properties"))
+						sHydraProperties = value;
+					else if (key.equals("log"))
+						sLogFile = value;
+				}
+			}
+		}
+
 		mHydraService.initialize();
 
 		Scanner sc = new Scanner(System.in);
@@ -490,7 +505,7 @@ public class HydraService implements Daemon {
 
 		mHydraService.shutdown();
 	}
-	
+
 	/**
 	 * Static methods called by prunsrv to start/stop
 	 * the Windows service.  Pass the argument "start"
@@ -506,12 +521,24 @@ public class HydraService implements Daemon {
 		if (args.length > 0)
 			cmd = args[0];
 
+		for (String arg : args) {
+			int eqIdx = arg.indexOf("=");
+			if (eqIdx != -1) {
+				String key = arg.substring(0, eqIdx);
+				String value = arg.substring(++eqIdx);
+				if (key.equals("properties"))
+					sHydraProperties = value;
+				else if (key.equals("log"))
+					sLogFile = value;
+			}
+		}
+
 		if ("start".equals(cmd))
 			mHydraService.windowsStart();
 		else
 			mHydraService.shutdown();
 	}
-	
+
 	public void windowsStart() {
 		mHydraService.initialize();
 		while (!mHydraService.isShutdown()) {
@@ -522,7 +549,7 @@ public class HydraService implements Daemon {
 			}
 		}
 	}
-	
+
 	public void windowsStop() {
 		mHydraService.shutdown();
 		synchronized (this) {
@@ -548,7 +575,7 @@ public class HydraService implements Daemon {
 	@Override
 	public void destroy() {
 	}
-	
+
 	public boolean isShutdown() {
 		return (sAcceptThread == null);
 	}

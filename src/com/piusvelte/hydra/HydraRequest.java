@@ -20,14 +20,6 @@
 package com.piusvelte.hydra;
 
 import static com.piusvelte.hydra.ClientThread.ACTION_ABOUT;
-import static com.piusvelte.hydra.ClientThread.PARAM_ACTION;
-import static com.piusvelte.hydra.ClientThread.PARAM_AUTH;
-import static com.piusvelte.hydra.ClientThread.PARAM_COLUMNS;
-import static com.piusvelte.hydra.ClientThread.PARAM_DATABASE;
-import static com.piusvelte.hydra.ClientThread.PARAM_QUEUEABLE;
-import static com.piusvelte.hydra.ClientThread.PARAM_SELECTION;
-import static com.piusvelte.hydra.ClientThread.PARAM_TARGET;
-import static com.piusvelte.hydra.ClientThread.PARAM_VALUES;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -41,13 +33,24 @@ import com.sun.jndi.toolkit.url.Uri;
 
 public class HydraRequest {
 
+	protected static final String PARAM_HMAC = "hmac";
+	protected static final String PARAM_SALT = "salt";
+	protected static final String PARAM_CHALLENGE = "challenge";
+	protected static final String PARAM_DATABASE = "database";
+	protected static final String PARAM_VALUES = "values";
+	protected static final String PARAM_COLUMNS = "columns";
+	protected static final String PARAM_SELECTION = "selection";
+	protected static final String PARAM_TARGET = "target";
+	protected static final String PARAM_ACTION = "action";
+	protected static final String PARAM_QUEUEABLE = "queueable";
+
 	String action = "";
 	String database = "";
 	String target = "";
 	String[] columns = new String[0];
 	String[] values = new String[0];
 	String selection = "";
-	String auth = "";
+	String hmac = "";
 	String requestAuth = "";
 	boolean queueable = false;
 
@@ -71,7 +74,7 @@ public class HydraRequest {
 			q = "";
 		else
 			queueable = Boolean.parseBoolean(q);
-		auth = (String) request.get(PARAM_AUTH);
+		hmac = (String) request.get(PARAM_HMAC);
 		requestAuth = action + database + target;
 		for (String s : columns)
 			requestAuth += s;
@@ -138,8 +141,8 @@ public class HydraRequest {
 						selection = value;
 					else if (PARAM_QUEUEABLE.equals(key))
 						queueable = Boolean.parseBoolean(value);
-					else if (PARAM_AUTH.equals(key))
-						auth = value;
+					else if (PARAM_HMAC.equals(key))
+						hmac = value;
 					HydraService.writeLog("param:"+key+"="+value);
 				} catch (UnsupportedEncodingException e) {
 					e.printStackTrace();
@@ -155,10 +158,10 @@ public class HydraRequest {
 			passphrase = HydraService.getHashString(requestAuth + Long.toString(challenge) + saltedPassphrase);
 			if (passphrase.length() > 64)
 				passphrase = passphrase.substring(0, 64);
-			if (auth == null)
+			if (hmac == null)
 				return false;
 			else
-				return auth.equals(passphrase);
+				return hmac.equals(passphrase);
 		} catch (NoSuchAlgorithmException e) {
 			e.printStackTrace();
 		} catch (UnsupportedEncodingException e) {

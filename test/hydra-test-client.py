@@ -80,11 +80,11 @@ def main():
 				authRequest += selection
 				queueable = raw_input('queueable (true,false):')
 				authRequest += queueable
-		print 'auth: ' + authRequest
 		# add auth
 		saltedPassphrase = hashlib.sha256(salt + passphrase).hexdigest()[:64]
-		auth = hashlib.sha256(authRequest + challenge + saltedPassphrase).hexdigest()[:64]
-		req = json.dumps({'action':action,'database':database,'target':target,'columns':columns,'values':values,'selection':selection,'queueable':queueable,'auth':auth})
+		hmac = hashlib.sha256(authRequest + challenge + saltedPassphrase).hexdigest()[:64]
+		req = json.dumps({'action':action,'database':database,'target':target,'columns':columns,'values':values,'selection':selection,'queueable':queueable,'hmac':hmac})
+		print 'req: ' + req
 		s.send(req + '\n')
 		# read response
 		errors = ''

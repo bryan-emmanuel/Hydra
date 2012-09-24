@@ -19,6 +19,9 @@
  */
 package com.piusvelte.hydra;
 
+import static com.piusvelte.hydra.HydraRequest.PARAM_CHALLENGE;
+import static com.piusvelte.hydra.HydraRequest.PARAM_SALT;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,16 +41,6 @@ import com.sun.jndi.toolkit.url.Uri;
 
 public class ClientThread extends Thread {
 
-	protected static final String PARAM_AUTH = "auth";
-	protected static final String PARAM_SALT = "salt";
-	protected static final String PARAM_CHALLENGE = "challenge";
-	protected static final String PARAM_DATABASE = "database";
-	protected static final String PARAM_VALUES = "values";
-	protected static final String PARAM_COLUMNS = "columns";
-	protected static final String PARAM_SELECTION = "selection";
-	protected static final String PARAM_TARGET = "target";
-	protected static final String PARAM_ACTION = "action";
-	protected static final String PARAM_QUEUEABLE = "queueable";
 	protected static final String ACTION_ABOUT = "about";
 	protected static final String ACTION_QUERY = "query";
 	protected static final String ACTION_INSERT = "insert";
