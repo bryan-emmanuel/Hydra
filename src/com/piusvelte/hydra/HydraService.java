@@ -81,8 +81,9 @@ public class HydraService implements Daemon {
 	private static String sHydraProperties = "hydra.properties";
 	private static QueueThread sQueueThread = null;
 	private static int mQueueRetryInterval;
+	private static HydraService mHydraService = new HydraService();
 
-	private static void initialize() {
+	private void initialize() {
 		
 		if (sAcceptThread != null)
 			return;
@@ -480,14 +481,14 @@ public class HydraService implements Daemon {
 
 	// java entry point
 	public static void main(String[] args) {
-		initialize();
+		mHydraService.initialize();
 
 		Scanner sc = new Scanner(System.in);
 		// wait until receive stop command from keyboard
 		System.out.printf("Enter 'stop' to halt: ");
 		while(!sc.nextLine().toLowerCase().equals("stop"));
 
-		shutdown();
+		mHydraService.shutdown();
 	}
 	
 	/**
@@ -506,9 +507,27 @@ public class HydraService implements Daemon {
 			cmd = args[0];
 
 		if ("start".equals(cmd))
-			initialize();
+			mHydraService.windowsStart();
 		else
-			shutdown();
+			mHydraService.shutdown();
+	}
+	
+	public void windowsStart() {
+		mHydraService.initialize();
+		while (!mHydraService.isShutdown()) {
+			synchronized (this) {
+				try {
+					this.wait(60000);
+				} catch (InterruptedException e) {}
+			}
+		}
+	}
+	
+	public void windowsStop() {
+		mHydraService.shutdown();
+		synchronized (this) {
+			this.notify();
+		}
 	}
 
 	// Implementing the Daemon interface is not required for Windows but is for Linux
@@ -529,9 +548,15 @@ public class HydraService implements Daemon {
 	@Override
 	public void destroy() {
 	}
+	
+	public boolean isShutdown() {
+		return (sAcceptThread == null);
+	}
 
-	public static void shutdown() {
-		if (sAcceptThread != null)
+	public void shutdown() {
+		if (sAcceptThread != null) {
 			sAcceptThread.shutdown();
+			sAcceptThread = null;
+		}
 	}
 }
