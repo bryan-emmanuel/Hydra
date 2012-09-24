@@ -72,37 +72,42 @@ public class HydraService implements Daemon {
 	private static String sConnectionPassphrase;
 	private static String sSalt;
 	private static String sLogFile = "logs/hydra.log";
-	protected static FileHandler sLogFileHandler;
-	protected static Logger sLogger;
+	protected static FileHandler sLogFileHandler = null;
+	protected static Logger sLogger = null;
 	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
 	private static HashMap<String, ArrayList<DatabaseConnection>> sDatabaseConnections = new HashMap<String, ArrayList<DatabaseConnection>>();
 	private static String sQueueFileName = "queue.txt";
 	private static int[] sQueueLock = new int[0];// small lock object
-	private static String sHydraProperties = "hydra.properties";
+	private static String sHydraProperties = "conf/hydra.properties";
 	private static QueueThread sQueueThread = null;
 	private static int mQueueRetryInterval;
-	private static HydraService mHydraService = new HydraService();
+	//	private static HydraService mHydraService = new HydraService();
 
-	private void initialize() {
+	private static void initialize() {
 
 		if (sAcceptThread != null)
 			return;
 
-		try {
-			sLogFileHandler = new FileHandler(sLogFile);
-		} catch (SecurityException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
+		if (sLogFileHandler == null) {
+			try {
+				sLogFileHandler = new FileHandler(sLogFile);
+			} catch (SecurityException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 
 		if (sLogFileHandler != null) {
-			sLogger = Logger.getLogger("Hydra");
-			sLogger.addHandler(sLogFileHandler);
-			SimpleFormatter sf = new SimpleFormatter();
-			sLogFileHandler.setFormatter(sf);
-			writeLog("Hydra starting");
+			if (sLogger == null) {
+				sLogger = Logger.getLogger("Hydra");
+				sLogger.addHandler(sLogFileHandler);
+				SimpleFormatter sf = new SimpleFormatter();
+				sLogFileHandler.setFormatter(sf);
+			}
 		}
+
+		writeLog("initialize");
 
 		File f = new File(sHydraProperties);
 		if (!f.exists()) {
@@ -180,15 +185,23 @@ public class HydraService implements Daemon {
 					// listen for connections
 					(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt)).start();
 					try {
+						writeLog("joining accept thread");
 						sAcceptThread.join();
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}
+					writeLog("accept thread shutdown, Hydra shutdown...");
 					if (sQueueThread != null)
 						stopQueueThread();
 					sAcceptThread.shutdown();
-				} else
-					System.out.println("unable to load " + sHydraProperties);
+				} else {
+					try {
+						fis.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					System.out.println("unable to load " + sHydraProperties);	
+				}
 			} else
 				System.out.println("unable to read " + sHydraProperties);
 		} else
@@ -496,14 +509,29 @@ public class HydraService implements Daemon {
 			}
 		}
 
-		mHydraService.initialize();
+		//		mHydraService.initialize();
+		initialize();
+		writeLog("main post initialize");
 
 		Scanner sc = new Scanner(System.in);
 		// wait until receive stop command from keyboard
 		System.out.printf("Enter 'stop' to halt: ");
-		while(!sc.nextLine().toLowerCase().equals("stop"));
+		while(!sc.nextLine().toLowerCase().equals("stop") || isShutdown());
 
-		mHydraService.shutdown();
+		//		mHydraService.shutdown();
+		shutdown();
+	}
+
+	// daemon start
+	public static void start(String[] args) {
+		windowsService(args);
+		writeLog("start post initialize");
+	}
+
+	public static void stop(String[] args) {
+		//		mHydraService.windowsStop();
+		writeLog("stop");
+		shutdown();
 	}
 
 	/**
@@ -534,28 +562,31 @@ public class HydraService implements Daemon {
 		}
 
 		if ("start".equals(cmd))
-			mHydraService.windowsStart();
+			//			mHydraService.windowsStart();
+			initialize();
 		else
-			mHydraService.shutdown();
+			//			mHydraService.shutdown();
+			shutdown();
+		writeLog("windowsService post initialize or shutdown");
 	}
 
-	public void windowsStart() {
-		mHydraService.initialize();
-		while (!mHydraService.isShutdown()) {
-			synchronized (this) {
-				try {
-					this.wait(60000);
-				} catch (InterruptedException e) {}
-			}
-		}
-	}
+	//	public void windowsStart() {
+	//		mHydraService.initialize();
+	//		while (!mHydraService.isShutdown()) {
+	//			synchronized (this) {
+	//				try {
+	//					this.wait(60000);
+	//				} catch (InterruptedException e) {}
+	//			}
+	//		}
+	//	}
 
-	public void windowsStop() {
-		mHydraService.shutdown();
-		synchronized (this) {
-			this.notify();
-		}
-	}
+	//	public void windowsStop() {
+	//		mHydraService.shutdown();
+	//		synchronized (this) {
+	//			this.notify();
+	//		}
+	//	}
 
 	// Implementing the Daemon interface is not required for Windows but is for Linux
 	@Override
@@ -576,14 +607,19 @@ public class HydraService implements Daemon {
 	public void destroy() {
 	}
 
-	public boolean isShutdown() {
+	public static boolean isShutdown() {
 		return (sAcceptThread == null);
 	}
 
-	public void shutdown() {
+	public static void shutdown() {
+		writeLog("shutdown");
 		if (sAcceptThread != null) {
 			sAcceptThread.shutdown();
 			sAcceptThread = null;
 		}
+		if (sLogger != null)
+			sLogger = null;
+		if (sLogFileHandler != null)
+			sLogFileHandler.close();
 	}
 }
