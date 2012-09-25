@@ -52,7 +52,7 @@ public class ClientThread extends Thread {
 	protected static final String BAD_REQUEST = "bad request";
 
 	// socket timeout
-	private static final int sSocketTimeout = 30000;
+	private static final int sSocketTimeout = 60000;
 
 	private int mClientIndex = 0;
 	private Socket mSocket;
