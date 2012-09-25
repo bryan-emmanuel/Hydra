@@ -50,6 +50,7 @@ import org.json.simple.JSONObject;
 public class HydraService implements Daemon {
 
 	private static AcceptThread sAcceptThread = null;
+	private static int[] sAcceptThreadLock = new int[0];
 	private static final String sPassphrase = "passphrase";
 	private static final String sDatabases = "databases";
 	private static final String sAlias = "alias";
@@ -77,16 +78,102 @@ public class HydraService implements Daemon {
 	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
 	private static HashMap<String, ArrayList<DatabaseConnection>> sDatabaseConnections = new HashMap<String, ArrayList<DatabaseConnection>>();
 	private static String sQueueFileName = "queue.txt";
-	private static int[] sQueueLock = new int[0];// small lock object
+	private static int[] sQueueLock = new int[0];
 	private static String sHydraProperties = "conf/hydra.properties";
 	private static QueueThread sQueueThread = null;
 	private static int mQueueRetryInterval;
-	//	private static HydraService mHydraService = new HydraService();
+
+	// daemon methods
+
+	// java entry point
+	public static void main(String[] args) {
+		String cmd;
+		if (args.length > 0) {
+			cmd = args[0];
+			if (!"start".equals(cmd) || !"stop".equals(cmd))
+				cmd = "start";
+		} else
+			cmd = "start";
+
+		for (String arg : args) {
+			int eqIdx = arg.indexOf("=");
+			if (eqIdx != -1) {
+				String key = arg.substring(0, eqIdx);
+				String value = arg.substring(++eqIdx);
+				if (key.equals("properties"))
+					sHydraProperties = value;
+				else if (key.equals("log"))
+					sLogFile = value;
+			}
+		}
+
+		if ("start".equals(cmd)) {
+			initialize();
+			Scanner sc = new Scanner(System.in);
+			System.out.printf("Enter 'stop' to halt: ");
+			while(!sc.nextLine().equals("stop") && !isShutdown());
+			shutdown();
+		} else
+			shutdown();
+	}
+
+	// daemon start
+	public static void start(String[] args) {
+		main(args);
+	}
+
+	public static void stop(String[] args) {
+		writeLog("stop");
+		shutdown();
+	}
+
+	// Implementing the Daemon interface is not required for Windows but is for Linux
+	@Override
+	public void init(DaemonContext arg0) throws Exception {
+	}
+
+	@Override
+	public void start() {
+		initialize();
+	}
+
+	@Override
+	public void stop() {
+		shutdown();
+	}
+
+	@Override
+	public void destroy() {
+	}
+	
+	private static boolean isShutdown() {
+		synchronized (sAcceptThreadLock) {
+			return (sAcceptThread == null);
+		}
+	}
+
+	public static void shutdown() {
+		writeLog("shutdown");
+		if (sQueueThread != null)
+			stopQueueThread();
+		synchronized (sAcceptThreadLock) {
+			if (sAcceptThread != null) {
+				sAcceptThread.shutdown();
+				sAcceptThread = null;
+			}
+		}
+		if (sLogger != null)
+			sLogger = null;
+		if (sLogFileHandler != null)
+			sLogFileHandler.close();
+	}
 
 	private static void initialize() {
 
-		if (sAcceptThread != null)
-			return;
+		synchronized (sAcceptThreadLock) {
+			if (sAcceptThread != null)
+				return;
+		}
 
 		if (sLogFileHandler == null) {
 			try {
@@ -163,7 +250,6 @@ public class HydraService implements Daemon {
 					} catch (IOException e) {
 						e.printStackTrace();
 					}
-
 					// generate a salt
 					String salt = new BigInteger(256, new SecureRandom()).toString(16);
 					MessageDigest md;
@@ -179,21 +265,11 @@ public class HydraService implements Daemon {
 					} catch (UnsupportedEncodingException e) {
 						e.printStackTrace();
 					}
-
 					startQueueThread();
-
 					// listen for connections
-					(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt)).start();
-					try {
-						writeLog("joining accept thread");
-						sAcceptThread.join();
-					} catch (InterruptedException e) {
-						e.printStackTrace();
+					synchronized (sAcceptThreadLock) {
+						(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt)).start();
 					}
-					writeLog("accept thread shutdown, Hydra shutdown...");
-					if (sQueueThread != null)
-						stopQueueThread();
-					sAcceptThread.shutdown();
 				} else {
 					try {
 						fis.close();
@@ -255,7 +331,7 @@ public class HydraService implements Daemon {
 		return databaseConnection;
 	}
 
-	public static synchronized void removeClientThread(int index) {
+	public static synchronized void clientThreadShutdown(int index) {
 		int clients = sAcceptThread.removeClientThread(index);
 		// maintain atleast as many connections/database as client threads
 		for (String key : sDatabaseConnections.keySet()) {
@@ -488,138 +564,5 @@ public class HydraService implements Daemon {
 			} else
 				return false;
 		}
-	}
-
-	// daemon methods
-
-	// java entry point
-	public static void main(String[] args) {
-
-		if (args != null) {
-			for (String arg : args) {
-				int eqIdx = arg.indexOf("=");
-				if (eqIdx != -1) {
-					String key = arg.substring(0, eqIdx);
-					String value = arg.substring(++eqIdx);
-					if (key.equals("properties"))
-						sHydraProperties = value;
-					else if (key.equals("log"))
-						sLogFile = value;
-				}
-			}
-		}
-
-		//		mHydraService.initialize();
-		initialize();
-		writeLog("main post initialize");
-
-		Scanner sc = new Scanner(System.in);
-		// wait until receive stop command from keyboard
-		System.out.printf("Enter 'stop' to halt: ");
-		while(!sc.nextLine().toLowerCase().equals("stop") || isShutdown());
-
-		//		mHydraService.shutdown();
-		shutdown();
-	}
-
-	// daemon start
-	public static void start(String[] args) {
-		windowsService(args);
-		writeLog("start post initialize");
-	}
-
-	public static void stop(String[] args) {
-		//		mHydraService.windowsStop();
-		writeLog("stop");
-		shutdown();
-	}
-
-	/**
-	 * Static methods called by prunsrv to start/stop
-	 * the Windows service.  Pass the argument "start"
-	 * to start the service, and pass "stop" to
-	 * stop the service.
-	 *
-	 * Taken lock, stock and barrel from Christopher Pierce's blog at http://blog.platinumsolutions.com/node/234
-	 *
-	 * @param args Arguments from prunsrv command line
-	 **/
-	public static void windowsService(String args[]) {
-		String cmd = "start";
-		if (args.length > 0)
-			cmd = args[0];
-
-		for (String arg : args) {
-			int eqIdx = arg.indexOf("=");
-			if (eqIdx != -1) {
-				String key = arg.substring(0, eqIdx);
-				String value = arg.substring(++eqIdx);
-				if (key.equals("properties"))
-					sHydraProperties = value;
-				else if (key.equals("log"))
-					sLogFile = value;
-			}
-		}
-
-		if ("start".equals(cmd))
-			//			mHydraService.windowsStart();
-			initialize();
-		else
-			//			mHydraService.shutdown();
-			shutdown();
-		writeLog("windowsService post initialize or shutdown");
-	}
-
-	//	public void windowsStart() {
-	//		mHydraService.initialize();
-	//		while (!mHydraService.isShutdown()) {
-	//			synchronized (this) {
-	//				try {
-	//					this.wait(60000);
-	//				} catch (InterruptedException e) {}
-	//			}
-	//		}
-	//	}
-
-	//	public void windowsStop() {
-	//		mHydraService.shutdown();
-	//		synchronized (this) {
-	//			this.notify();
-	//		}
-	//	}
-
-	// Implementing the Daemon interface is not required for Windows but is for Linux
-	@Override
-	public void init(DaemonContext arg0) throws Exception {
-	}
-
-	@Override
-	public void start() {
-		initialize();
-	}
-
-	@Override
-	public void stop() {
-		shutdown();
-	}
-
-	@Override
-	public void destroy() {
-	}
-
-	public static boolean isShutdown() {
-		return (sAcceptThread == null);
-	}
-
-	public static void shutdown() {
-		writeLog("shutdown");
-		if (sAcceptThread != null) {
-			sAcceptThread.shutdown();
-			sAcceptThread = null;
-		}
-		if (sLogger != null)
-			sLogger = null;
-		if (sLogFileHandler != null)
-			sLogFileHandler.close();
 	}
 }

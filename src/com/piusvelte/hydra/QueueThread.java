@@ -104,7 +104,6 @@ public class QueueThread extends Thread {
 				}
 			}
 		}
-		HydraService.stopQueueThread();
 	}
 
 	protected void shutdown() {

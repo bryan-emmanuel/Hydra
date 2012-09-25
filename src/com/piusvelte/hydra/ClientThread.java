@@ -30,6 +30,7 @@ import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.Socket;
+import java.net.SocketException;
 import java.security.NoSuchAlgorithmException;
 
 import org.json.simple.JSONArray;
@@ -50,6 +51,9 @@ public class ClientThread extends Thread {
 	protected static final String ACTION_DELETE = "delete";
 	protected static final String BAD_REQUEST = "bad request";
 
+	// socket timeout
+	private static final int sSocketTimeout = 30000;
+
 	private int mClientIndex = 0;
 	private Socket mSocket;
 	private String mPassphrase;
@@ -58,6 +62,11 @@ public class ClientThread extends Thread {
 
 	public ClientThread(Socket socket, int clientIndex, String passphrase, String salt) {
 		mSocket = socket;
+		try {
+			mSocket.setSoTimeout(sSocketTimeout);
+		} catch (SocketException e) {
+			HydraService.writeLog(e.getMessage());
+		}
 		mClientIndex = clientIndex;
 		mPassphrase = passphrase;
 		mSalt = salt;
@@ -239,12 +248,14 @@ public class ClientThread extends Thread {
 				e.printStackTrace();
 			}
 		}
-		try {
-			mSocket.close();
-		} catch (IOException e) {
-			HydraService.writeLog(e.getMessage());
+		if (mSocket != null) {
+			try {
+				mSocket.close();
+			} catch (IOException e) {
+				HydraService.writeLog(e.getMessage());
+			}
 		}
-		HydraService.removeClientThread(mClientIndex);
+		HydraService.clientThreadShutdown(mClientIndex);
 	}
 
 	protected void shutdown() {
