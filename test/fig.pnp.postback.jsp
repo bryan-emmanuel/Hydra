@@ -4,6 +4,8 @@
 <%@ page import="java.math.BigInteger"%>
 <%@ page import="java.util.*"%>
 <%@ page import="java.util.Date"%>
+<%@ page import="javax.net.SocketFactory"%>
+<%@ page import="javax.net.ssl.SSLSocketFactory"%>
 <%
 /*
  * Configure connection parameters for Hydra here
@@ -56,7 +58,9 @@ if (values.length() > 0) {
 	OutputStream outStream = null;
 	try {
 		// Connect to Hydra
-		socket = new Socket(host, port);
+		SocketFactory sf = SSLSocketFactory.getDefault();
+		//socket = new Socket(host, port);
+		socket = sf.createSocket(host, port);
 		inStream = socket.getInputStream();
 		outStream = socket.getOutputStream();		
 		BufferedReader br = new BufferedReader(new InputStreamReader(inStream));

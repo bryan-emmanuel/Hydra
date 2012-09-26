@@ -62,6 +62,9 @@ public class HydraService implements Daemon {
 	private static final String sPassword = "password";
 	private static final String sConnections = "connections";
 	private static final String sQueueRetryInterval = "queueretryinterval";
+	private static final String sCertificateFile = "certificatefile";
+	private static final String sCertificatePass = "certificatepass";
+	private static final String sKeyStorePass = "storepass";
 	private static final String sDASU = "DASU";
 	private static final String sDASP = "DASP";
 	private static final String sSQLENVINIT = "SQLENVINIT";
@@ -227,6 +230,9 @@ public class HydraService implements Daemon {
 					e.printStackTrace();
 				}
 				if (properties != null) {
+					String certFile = null;
+					char[] certPass = null;
+					char[] keystorePass = null;
 					sConnectionPassphrase = properties.getProperty(sPassphrase);
 					if (properties.containsKey(sPort))
 						listenPort = Integer.parseInt(properties.getProperty(sPort));
@@ -245,6 +251,12 @@ public class HydraService implements Daemon {
 							sDatabaseConnections.put(databaseAlias, new ArrayList<DatabaseConnection>());
 						}
 					}
+					if (properties.contains(sCertificateFile))
+						certFile = properties.getProperty(sCertificateFile);
+					if (properties.contains(sCertificatePass))
+						certPass = properties.getProperty(sCertificatePass).toCharArray();
+					if (properties.contains(sKeyStorePass))
+						keystorePass = properties.getProperty(sKeyStorePass).toCharArray();
 					try {
 						fis.close();
 					} catch (IOException e) {
@@ -268,7 +280,7 @@ public class HydraService implements Daemon {
 					startQueueThread();
 					// listen for connections
 					synchronized (sAcceptThreadLock) {
-						(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt)).start();
+						(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt, certFile, certPass, keystorePass)).start();
 					}
 				} else {
 					try {

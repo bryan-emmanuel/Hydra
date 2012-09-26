@@ -19,10 +19,22 @@
  */
 package com.piusvelte.hydra;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLServerSocketFactory;
 
 public class AcceptThread extends Thread {
 
@@ -34,13 +46,91 @@ public class AcceptThread extends Thread {
 	private String mSalt;
 	private ServerSocket mServerSocket = null;
 
-	public AcceptThread(int listenPort, int connections, String passphrase, String salt) {
+	public AcceptThread(int listenPort, int connections, String passphrase, String salt, String certFile, char[] certPass, char[] keystorePass) {
 		mListenPort = listenPort;
 		mConnections = connections;
 		mPassphrase = passphrase;
 		mSalt = salt;
+		if ((certFile != null) && (certPass != null)) {
+			SSLContext sc = null;
+			try {
+				sc = SSLContext.getInstance("TLS");
+			} catch (NoSuchAlgorithmException e) {
+				HydraService.writeLog(e.getMessage());
+			}
+			if (sc != null) {
+				KeyManagerFactory kmf = null;
+				try {
+					kmf = KeyManagerFactory.getInstance("SunX509");
+				} catch (NoSuchAlgorithmException e) {
+					HydraService.writeLog(e.getMessage());
+				}
+				if (kmf != null) {
+					String certType;
+					if (keystorePass != null)
+						certType = "JKS";
+					else {
+						certType = "PKCS12";
+						keystorePass = certPass;
+					}
+					FileInputStream fis = null;
+					try {
+						fis = new FileInputStream(certFile);
+					} catch (FileNotFoundException e) {
+						HydraService.writeLog(e.getMessage());
+					}
+					if (fis != null) {
+						KeyStore ks = null;
+						try {
+							ks = KeyStore.getInstance(certType);
+						} catch (KeyStoreException e) {
+							HydraService.writeLog(e.getMessage());
+						}
+						if (ks != null) {
+							SSLServerSocketFactory ssf = null; 
+							try {
+								ks.load(fis, keystorePass);
+								kmf.init(ks, certPass);
+								sc.init(kmf.getKeyManagers(), null, null);
+								ssf = sc.getServerSocketFactory();
+							} catch (NoSuchAlgorithmException e) {
+								HydraService.writeLog(e.getMessage());
+							} catch (CertificateException e) {
+								HydraService.writeLog(e.getMessage());
+							} catch (IOException e) {
+								HydraService.writeLog(e.getMessage());
+							} catch (UnrecoverableKeyException e) {
+								HydraService.writeLog(e.getMessage());
+							} catch (KeyStoreException e) {
+								HydraService.writeLog(e.getMessage());
+							} catch (KeyManagementException e) {
+								HydraService.writeLog(e.getMessage());
+							}
+							try {
+								fis.close();
+							} catch (IOException e) {
+								HydraService.writeLog(e.getMessage());
+							}
+							if (ssf != null) {
+								try {
+									mServerSocket = ssf.createServerSocket(listenPort);
+								} catch (IOException e) {
+									HydraService.writeLog(e.getMessage());
+								}
+							}
+						}
+					}
+				}
+			}
+		} else {
+			try {
+				mServerSocket = new ServerSocket(mListenPort);
+			} catch (IOException e) {
+				HydraService.writeLog(e.getMessage());
+			}
+		}
 	}
-	
+
 	public synchronized int removeClientThread(int index) {
 		mClientThreads.remove(index);
 		return mClientThreads.size();
@@ -48,18 +138,6 @@ public class AcceptThread extends Thread {
 
 	@Override
 	public void run() {
-		mServerSocket = null;
-
-		// bind the port
-		try {
-			mServerSocket = new ServerSocket(mListenPort);
-		} 
-		catch (IOException e) {
-			System.out.println("Could not listen on port: " + mListenPort);
-			System.exit(-1);
-		}
-
-		// wait for connection requests
 		while (mServerSocket != null) {
 			try {
 				HydraService.writeLog("listening...");
