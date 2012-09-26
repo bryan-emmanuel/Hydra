@@ -42,7 +42,7 @@ public class QueueThread extends Thread {
 
 	@Override
 	public void run() {
-		// sub-queue the requests
+		HydraService.writeLog("QueueThread started");
 		while (mKeepAlive) {
 			String request = HydraService.dequeueRequest();
 			// keep track of the beginning of the queue
@@ -104,6 +104,7 @@ public class QueueThread extends Thread {
 				}
 			}
 		}
+		HydraService.writeLog("QueueThread stopped");
 	}
 
 	protected void shutdown() {

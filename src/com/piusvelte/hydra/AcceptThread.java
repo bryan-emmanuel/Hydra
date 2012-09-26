@@ -52,6 +52,7 @@ public class AcceptThread extends Thread {
 		mPassphrase = passphrase;
 		mSalt = salt;
 		if ((certFile != null) && (certPass != null)) {
+			HydraService.writeLog("create SSL socket");
 			SSLContext sc = null;
 			try {
 				sc = SSLContext.getInstance("TLS");
@@ -73,6 +74,7 @@ public class AcceptThread extends Thread {
 						certType = "PKCS12";
 						keystorePass = certPass;
 					}
+					HydraService.writeLog("certType: " + certType);
 					FileInputStream fis = null;
 					try {
 						fis = new FileInputStream(certFile);

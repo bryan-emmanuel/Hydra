@@ -121,8 +121,8 @@ public class HydraRequest {
 		}
 		// set the requestAuth
 		requestAuth = request.toString();
-		int authIdx = requestAuth.lastIndexOf("auth");
-		requestAuth = requestAuth.substring(0, --authIdx);
+		int hmacIdx = requestAuth.lastIndexOf(PARAM_HMAC);
+		requestAuth = requestAuth.substring(0, --hmacIdx);
 		// parse parameters
 		String[] rawParams = rawQuery.split("&");
 		for (String param : rawParams) {
@@ -171,6 +171,8 @@ public class HydraRequest {
 	}
 
 	String[] parseArray(JSONArray jarr) {
+		if (jarr == null)
+			return new String[0];
 		String[] sArr = new String[jarr.size()];
 		for (int i = 0, l = sArr.length; i < l; i++)
 			sArr[i] = (String) jarr.get(i);

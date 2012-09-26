@@ -64,7 +64,7 @@ public class HydraService implements Daemon {
 	private static final String sQueueRetryInterval = "queueretryinterval";
 	private static final String sCertificateFile = "certificatefile";
 	private static final String sCertificatePass = "certificatepass";
-	private static final String sKeyStorePass = "storepass";
+	private static final String sKeyStorePass = "keystorepass";
 	private static final String sDASU = "DASU";
 	private static final String sDASP = "DASP";
 	private static final String sSQLENVINIT = "SQLENVINIT";
@@ -236,14 +236,25 @@ public class HydraService implements Daemon {
 					sConnectionPassphrase = properties.getProperty(sPassphrase);
 					if (properties.containsKey(sPort))
 						listenPort = Integer.parseInt(properties.getProperty(sPort));
+					HydraService.writeLog(sPort + ": " + listenPort);
 					if (properties.containsKey(sConnections))
 						connections = Integer.parseInt(properties.getProperty(sConnections));
+					HydraService.writeLog(sConnections + ": " + connections);
 					if (properties.containsKey(sQueueRetryInterval))
 						mQueueRetryInterval = Integer.parseInt(properties.getProperty(sQueueRetryInterval));
+					HydraService.writeLog(sQueueRetryInterval + ": " + mQueueRetryInterval);
+					if (properties.containsKey(sCertificateFile))
+						certFile = properties.getProperty(sCertificateFile);
+					HydraService.writeLog(sCertificateFile + ": " + certFile);
+					if (properties.containsKey(sCertificatePass))
+						certPass = properties.getProperty(sCertificatePass).toCharArray();
+					if (properties.containsKey(sKeyStorePass))
+						keystorePass = properties.getProperty(sKeyStorePass).toCharArray();
 					if (properties.containsKey(sDatabases)) {
 						String[] databaseAliases = properties.getProperty(sDatabases).split(",");
 						String[] databaseProperties = new String[]{sType, sDatabase, sHost, sPort, sUsername, sPassword, sConnections, sDASU, sDASP, sSQLENVINIT};
 						for (String databaseAlias : databaseAliases) {
+							HydraService.writeLog("loading database properties: " + databaseAlias);
 							HashMap<String, String> database = new HashMap<String, String>();
 							for (String databaseProperty : databaseProperties)
 								database.put(databaseProperty, properties.getProperty(databaseAlias + "." + databaseProperty, ""));
@@ -251,12 +262,6 @@ public class HydraService implements Daemon {
 							sDatabaseConnections.put(databaseAlias, new ArrayList<DatabaseConnection>());
 						}
 					}
-					if (properties.contains(sCertificateFile))
-						certFile = properties.getProperty(sCertificateFile);
-					if (properties.contains(sCertificatePass))
-						certPass = properties.getProperty(sCertificatePass).toCharArray();
-					if (properties.contains(sKeyStorePass))
-						keystorePass = properties.getProperty(sKeyStorePass).toCharArray();
 					try {
 						fis.close();
 					} catch (IOException e) {
@@ -272,8 +277,8 @@ public class HydraService implements Daemon {
 						if (sSalt.length() > 64) {
 							sSalt = sSalt.substring(0, 64);
 						}
-					} catch (NoSuchAlgorithmException e1) {
-						e1.printStackTrace();
+					} catch (NoSuchAlgorithmException e) {
+						e.printStackTrace();
 					} catch (UnsupportedEncodingException e) {
 						e.printStackTrace();
 					}

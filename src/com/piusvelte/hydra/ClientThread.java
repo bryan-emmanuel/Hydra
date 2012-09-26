@@ -130,7 +130,7 @@ public class ClientThread extends Thread {
 				e.printStackTrace();
 			}
 			while (mKeepAlive && (line != null) && (line.length() > 0)) {
-				HydraService.writeLog("read:"+line);
+				HydraService.writeLog("read: "+line);
 				// get the request before auth for adding to the authentication
 				if (line.startsWith("{")) {
 					JSONObject request = null;

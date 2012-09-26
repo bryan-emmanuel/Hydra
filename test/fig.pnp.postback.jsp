@@ -13,8 +13,9 @@
 String host = "webaddebug.usciences.edu";
 int port = 9001;
 String passphrase = "figsolutions";
+boolean use_ssl = true;
 String database = "debug";
-boolean debug_log = false;
+boolean debug_log = true;
 /*
  * End Configuration 
  */
@@ -58,9 +59,11 @@ if (values.length() > 0) {
 	OutputStream outStream = null;
 	try {
 		// Connect to Hydra
-		SocketFactory sf = SSLSocketFactory.getDefault();
-		//socket = new Socket(host, port);
-		socket = sf.createSocket(host, port);
+		if (use_ssl) {
+			SocketFactory sf = SSLSocketFactory.getDefault();
+			socket = sf.createSocket(host, port);
+		} else
+			socket = new Socket(host, port);
 		inStream = socket.getInputStream();
 		outStream = socket.getOutputStream();		
 		BufferedReader br = new BufferedReader(new InputStreamReader(inStream));
@@ -150,7 +153,9 @@ if (values.length() > 0) {
 				}
 			}
 		} else
-			isValid = false;	
+			isValid = false;
+		if (debug_log)
+			logWriter.println("isValid: " + isValid);
 	} catch (Exception e) {
 		isValid = false;
 		if (debug_log)
@@ -162,7 +167,7 @@ if (values.length() > 0) {
 					inStream.close();
 				} catch (IOException e) {
 					if (debug_log)
-						logWriter.println(e.getMessage());
+						e.printStackTrace(logWriter);
 				}
 			}
 			if (outStream != null) {
@@ -170,14 +175,14 @@ if (values.length() > 0) {
 					outStream.close();
 				} catch (IOException e) {
 					if (logWriter != null)
-						logWriter.println(e.getMessage());
+						e.printStackTrace(logWriter);
 				}
 			}
 			try {
 				socket.close();
 			} catch (IOException e) {
 				if (debug_log)
-					logWriter.println(e.getMessage());
+					e.printStackTrace(logWriter);
 			}
 		}
 	}
