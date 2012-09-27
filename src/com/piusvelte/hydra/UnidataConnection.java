@@ -24,6 +24,7 @@ import org.json.simple.JSONObject;
 
 //import asjava.uniclientlibs.UniDynArray;
 import asjava.uniclientlibs.UniString;
+import asjava.uniclientlibs.UniTokens;
 import asjava.uniobjects.UniCommand;
 import asjava.uniobjects.UniCommandException;
 import asjava.uniobjects.UniFile;
@@ -92,7 +93,7 @@ public class UnidataConnection extends DatabaseConnection {
 			UniCommand uCommand = mSession.command();
 			uCommand.setCommand(statement);
 			uCommand.exec();
-			response.put("result", uCommand.response());
+			response.put("result", parseMultiValues(uCommand.response()));
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
 			HydraService.writeLog(e.getMessage());
@@ -127,7 +128,7 @@ public class UnidataConnection extends DatabaseConnection {
 				uFile.setRecordID(recordID);
 				for (String column : columns) {
 					JSONObject col = new JSONObject();
-					col.put(column, uFile.readNamedField(column).toString());
+					col.put(column, parseMultiValues(uFile.readNamedField(column).toString()));
 					result.add(col);
 				}
 			}
@@ -189,7 +190,7 @@ public class UnidataConnection extends DatabaseConnection {
 				uFile.setRecordID(recordID);
 				for (String column : columns) {
 					JSONObject col = new JSONObject();
-					col.put(column, uFile.readNamedField(column).toString());
+					col.put(column, parseMultiValues(uFile.readNamedField(column).toString()));
 					result.add(col);
 				}
 			}
@@ -235,16 +236,12 @@ public class UnidataConnection extends DatabaseConnection {
 		JSONObject response = new JSONObject();
 		JSONArray vals = new JSONArray();
 		try {
-			System.out.println("subroutine:"+object);
-			System.out.println("arguments:"+values.length);
-			System.out.println("session isActive:" + mSession.isActive());
 			UniSubroutine subr = mSession.subroutine(object, values.length);
 			for (int i = 0, l = values.length; i < l; i++)
 				subr.setArg(i, values[i]);
-			System.out.println("call");
 			subr.call();
 			for (int i = 0, l = values.length; i < l; i++)
-				vals.add(subr.getArg(i));
+				vals.add(parseMultiValues(subr.getArg(i)));
 			response.put("result", vals);
 		} catch (UniSessionException e) {
 			e.printStackTrace();
@@ -254,6 +251,20 @@ public class UnidataConnection extends DatabaseConnection {
 			HydraService.writeLog(e.getMessage());
 		}
 		return response;
+	}
+
+	@SuppressWarnings("unchecked")
+	private JSONArray parseMultiValues(String multivalue) {
+		String[] vmValues = multivalue.split(UniTokens.AT_VM);
+		JSONArray vmValuesJArr = new JSONArray();
+		for (String vmValue : vmValues) {
+			String[] svmValues = vmValue.split(UniTokens.AT_SVM);
+			JSONArray svmValuesJArr = new JSONArray();
+			for (String svmValue : svmValues)
+				svmValuesJArr.add(svmValue);
+			vmValuesJArr.add(svmValuesJArr);
+		}
+		return vmValuesJArr;
 	}
 
 }
