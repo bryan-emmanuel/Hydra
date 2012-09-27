@@ -133,12 +133,12 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			else
 				rs = s.executeQuery(String.format(SIMPLE_QUERY_FORMAT, columnsStr, object).toString());
 			JSONArray result = new JSONArray();
+			JSONObject columnJObj = new JSONObject();
 			while (rs.next()) {
-				for (String column : columns) {
-					JSONObject col = new JSONObject();
-					col.put(column, (String) rs.getObject(column));
-					result.add(col);
-				}
+				columnJObj.clear();
+				for (String column : columns)
+					columnJObj.put(column, (String) rs.getObject(column));
+				result.add(columnJObj);
 			}
 			response.put("result", result);
 		} catch (SQLException e) {

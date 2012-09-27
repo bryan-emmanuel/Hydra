@@ -123,14 +123,14 @@ public class UnidataConnection extends DatabaseConnection {
 			UniSelectList uSelect = mSession.selectList(0);
 			uCommand.exec();
 			uFile = mSession.openFile(object);
+			JSONObject columnJObj = new JSONObject();
 			UniString recordID = null;
 			while ((recordID = uSelect.next()).length() > 0) {
 				uFile.setRecordID(recordID);
-				for (String column : columns) {
-					JSONObject col = new JSONObject();
-					col.put(column, parseMultiValues(uFile.readNamedField(column).toString()));
-					result.add(col);
-				}
+				columnJObj.clear();
+				for (String column : columns)
+					columnJObj.put(column, parseMultiValues(uFile.readNamedField(column).toString()));
+				result.add(columnJObj);
 			}
 			response.put("result", result);
 		} catch (UniSessionException e) {
@@ -164,6 +164,8 @@ public class UnidataConnection extends DatabaseConnection {
 	public JSONObject insert(String object, String[] columns, String[] values) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
+		//TODO
+		errors.add("not yet supported");
 		response.put("errors", errors);
 		return response;
 	}
@@ -188,11 +190,11 @@ public class UnidataConnection extends DatabaseConnection {
 			UniString recordID = null;
 			while ((recordID = uSelect.next()).length() > 0) {
 				uFile.setRecordID(recordID);
-				for (String column : columns) {
-					JSONObject col = new JSONObject();
-					col.put(column, parseMultiValues(uFile.readNamedField(column).toString()));
-					result.add(col);
+				for (int c = 0, cl = columns.length; c < cl; c++) {
+					if (c < values.length)
+						uFile.writeNamedField(columns[c], values[c]);
 				}
+				uFile.write();
 			}
 			response.put("result", result);
 		} catch (UniSessionException e) {
@@ -226,6 +228,8 @@ public class UnidataConnection extends DatabaseConnection {
 	public JSONObject delete(String object, String selection) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
+		//TODO
+		errors.add("not yet supported");
 		response.put("errors", errors);
 		return response;
 	}
