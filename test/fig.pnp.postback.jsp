@@ -10,11 +10,11 @@
 /*
  * Configure connection parameters for Hydra here
  */
-String host = "webaddebug.usciences.edu";
+String host = "";
 int port = 9001;
-String passphrase = "figsolutions";
+String passphrase = "";
 boolean use_ssl = true;
-String database = "debug";
+String database = "";
 boolean debug_log = true;
 /*
  * End Configuration 
