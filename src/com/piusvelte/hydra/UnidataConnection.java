@@ -164,7 +164,40 @@ public class UnidataConnection extends DatabaseConnection {
 	public JSONObject insert(String object, String[] columns, String[] values) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
-		//TODO
+		JSONArray result = new JSONArray();
+		UniFile uFile = null;
+		try {
+			uFile = mSession.openFile(object);
+		} catch (UniSessionException e) {
+			e.printStackTrace();
+			errors.add("error opening file: " + object + ": " + e.getMessage());
+		}
+		if (uFile != null) {
+			//TODO need to get the next key
+			UniString recordId = new UniString("key");
+			uFile.setRecord(recordId);
+			boolean fieldsWritten = true;
+			for (int c = 0, cl = columns.length; c < cl; c++) {
+				if (c < values.length) {
+					try {
+						uFile.writeNamedField(columns[c], values[c]);
+					} catch (UniFileException e) {
+						e.printStackTrace();
+						fieldsWritten = false;
+						errors.add("error writing field: " + columns[c] + "=" + values[c] + ": " + e.getMessage());
+					}
+				}
+			}
+			if (fieldsWritten) {
+				try {
+					uFile.write();
+				} catch (UniFileException e) {
+					e.printStackTrace();
+					errors.add("error writing file: " + e.getMessage());
+				}
+				response.put("result", result);
+			}
+		}
 		errors.add("not yet supported");
 		response.put("errors", errors);
 		return response;
@@ -228,8 +261,64 @@ public class UnidataConnection extends DatabaseConnection {
 	public JSONObject delete(String object, String selection) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
-		//TODO
-		errors.add("not yet supported");
+		JSONArray result = new JSONArray();
+		UniCommand uCommand = null;
+		try {
+			uCommand = mSession.command();
+		} catch (UniSessionException e) {
+			e.printStackTrace();
+			errors.add("error getting command: " + e.getMessage());
+		}
+		if (uCommand != null) {
+			UniFile uFile = null;
+			try {
+				uFile = mSession.openFile(object);
+			} catch (UniSessionException e) {
+				e.printStackTrace();
+				errors.add("error opening file: " + object + ": " + e.getMessage());
+			}
+			if (uFile != null) {
+				if (selection == null)
+					uCommand.setCommand(String.format(SIMPLE_QUERY_FORMAT, object).toString());
+				else
+					uCommand.setCommand(String.format(SELECTION_QUERY_FORMAT, object, selection).toString());
+				UniSelectList uSelect = null;
+				try {
+					uSelect = mSession.selectList(0);
+				} catch (UniSessionException e) {
+					e.printStackTrace();
+				}
+				if (uSelect != null) {
+					boolean gotSelection = false;
+					try {
+						uCommand.exec();
+						gotSelection = true;
+					} catch (UniCommandException e) {
+						e.printStackTrace();
+						errors.add("error getting selection: " + e.getMessage());
+					}
+					if (gotSelection) {
+						UniString recordID = null;
+						try {
+							recordID = uSelect.next();
+						} catch (UniSelectListException e) {
+							e.printStackTrace();
+							errors.add("error getting next record id: " + e.getMessage());
+						}
+						while ((recordID != null) && (recordID.length() > 0)) {
+							try {
+								uFile.setRecordID(recordID);
+								uFile.deleteRecord();
+								uFile.write();
+							} catch (UniFileException e) {
+								e.printStackTrace();
+							}
+						}
+						response.put("result", result);
+					}
+				}
+			}
+		}
 		response.put("errors", errors);
 		return response;
 	}
