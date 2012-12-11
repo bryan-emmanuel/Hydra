@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Properties;
-import java.util.Scanner;
 import java.util.Set;
 import java.util.logging.FileHandler;
 import java.util.logging.Logger;
@@ -110,13 +109,9 @@ public class HydraService implements Daemon {
 			}
 		}
 
-		if ("start".equals(cmd)) {
+		if ("start".equals(cmd))
 			initialize();
-			Scanner sc = new Scanner(System.in);
-			System.out.printf("Enter 'stop' to halt: ");
-			while(!sc.nextLine().equals("stop") && !isShutdown());
-			shutdown();
-		} else
+		else
 			shutdown();
 	}
 
@@ -148,12 +143,6 @@ public class HydraService implements Daemon {
 	@Override
 	public void destroy() {
 	}
-	
-	private static boolean isShutdown() {
-		synchronized (sAcceptThreadLock) {
-			return (sAcceptThread == null);
-		}
-	}
 
 	public static void shutdown() {
 		writeLog("shutdown");
@@ -169,6 +158,7 @@ public class HydraService implements Daemon {
 			sLogger = null;
 		if (sLogFileHandler != null)
 			sLogFileHandler.close();
+		System.exit(0);
 	}
 
 	private static void initialize() {
