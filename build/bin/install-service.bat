@@ -7,10 +7,9 @@
 
 if "%OS%" == "Windows_NT" setlocal
 
-set "CURRENT_DIR=%cd%"
+set CURRENT_DIR=%cd%
 cd ..
-set "APPLICATION_SERVICE_HOME=%cd%"
-echo %APPLICATION_SERVICE_HOME%
+set APPLICATION_SERVICE_HOME=%cd%
 cd "%CURRENT_DIR%"
 
 set SERVICE_NAME=Hydra

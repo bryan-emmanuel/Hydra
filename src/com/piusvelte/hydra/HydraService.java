@@ -109,9 +109,12 @@ public class HydraService implements Daemon {
 			}
 		}
 
-		if ("start".equals(cmd))
+		if ("start".equals(cmd)) {
 			initialize();
-		else
+			while (isRunning());
+			writeLog("exit");
+			System.exit(0);
+		} else
 			shutdown();
 	}
 
@@ -158,7 +161,12 @@ public class HydraService implements Daemon {
 			sLogger = null;
 		if (sLogFileHandler != null)
 			sLogFileHandler.close();
-		System.exit(0);
+	}
+	
+	private static boolean isRunning() {
+		synchronized (sAcceptThreadLock) {
+			return (sAcceptThread != null);
+		}
 	}
 
 	private static void initialize() {

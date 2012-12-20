@@ -159,6 +159,7 @@ public class AcceptThread extends Thread {
 	}
 
 	protected void shutdown() {
+		HydraService.writeLog("AcceptThread shutdown");
 		if (mServerSocket != null) {
 			try {
 				mServerSocket.close();

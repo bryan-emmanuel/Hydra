@@ -29,8 +29,6 @@ import java.sql.Statement;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import asjava.uniclientlibs.UniString;
-
 public class MSSQLConnection extends DatabaseConnection {
 
 	Connection mConnection;
