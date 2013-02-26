@@ -53,6 +53,8 @@ public class OracleConnection extends DatabaseConnection {
 			connectionString.append(mHostName);
 			connectionString.append(":");
 			connectionString.append(mHostPort);
+			connectionString.append("/");
+			connectionString.append(mAccountPath);
 			mDataSource = new OracleDataSource();
 			mDataSource.setUser(mUsername);
 			mDataSource.setPassword(mPassword);

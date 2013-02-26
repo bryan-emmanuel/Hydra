@@ -52,6 +52,8 @@ public class PostgreSQLConnection extends DatabaseConnection {
 			connectionString.append(mHostName);
 			connectionString.append(":");
 			connectionString.append(mHostPort);
+			connectionString.append("/");
+			connectionString.append(mAccountPath);
 			mConnection = DriverManager.getConnection(connectionString.toString(), mUsername, mPassword);
 		}
 		return mLock;
