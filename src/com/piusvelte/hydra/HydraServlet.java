@@ -26,23 +26,100 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+
 public class HydraServlet extends HttpServlet {
 
-	/**
-	 * 
-	 */
 	private static final long serialVersionUID = 1L;
 
-	public void doGet(HttpServletRequest request,
-            HttpServletResponse response)
-throws ServletException, IOException {
-		// this equates to a ClientThread
+	static final String ACTION_ABOUT = "about";
+	static final String ACTION_QUERY = "query";
+	static final String ACTION_INSERT = "insert";
+	static final String ACTION_UPDATE = "update";
+	static final String ACTION_EXECUTE = "execute";
+	static final String ACTION_SUBROUTINE = "subroutine";
+	static final String ACTION_DELETE = "delete";
+	static final String BAD_REQUEST = "bad request";
+
+	public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		response.getWriter().write("use POST");
+		response.setStatus(401);
 	}
 
-	public void doPost(HttpServletRequest request,
-            HttpServletResponse response)
-throws ServletException, IOException {
-		
+	public void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		HydraRequest hydraRequest = new HydraRequest(request);
+		if ((hydraRequest != null) && HydraService.authenticated(null, hydraRequest.getHMAC(), hydraRequest.getRequestAuth())) {
+			DatabaseConnection databaseConnection = null;
+			// execute, select, update, insert, delete
+			if (ACTION_ABOUT.equals(hydraRequest.action) && (hydraRequest.database.length() == 0)) {
+				response.setStatus(200);
+				response.getWriter().write(HydraService.getDatabases().toJSONString());
+			} else if (hydraRequest.database != null) {
+				if (ACTION_ABOUT.equals(hydraRequest.action)) {
+					response.setStatus(200);
+					response.getWriter().write(HydraService.getDatabase(hydraRequest.database).toJSONString());
+				} else {
+					try {
+						databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+					if (databaseConnection == null) {
+						// queue
+						JSONObject j = new JSONObject();
+						JSONArray errors = new JSONArray();
+						errors.add("no database connection");
+						if (hydraRequest.queueable) {
+							HydraService.queueRequest(hydraRequest.getRequest());
+							errors.add("queued");
+							response.setStatus(200);
+						} else
+							response.setStatus(400);
+						j.put("errors", errors);
+						response.getWriter().write(j.toJSONString());
+					} else {
+						response.setStatus(200);
+						if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
+							response.getWriter().write(databaseConnection.execute(hydraRequest.target).toJSONString());
+						else if (ACTION_QUERY.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0))
+							response.getWriter().write(databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection).toJSONString());
+						else if (ACTION_UPDATE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
+							response.getWriter().write(databaseConnection.update(hydraRequest.target, hydraRequest.columns, hydraRequest.values, hydraRequest.selection).toJSONString());
+						else if (ACTION_INSERT.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
+							response.getWriter().write(databaseConnection.insert(hydraRequest.target, hydraRequest.columns, hydraRequest.values).toJSONString());
+						else if (ACTION_DELETE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
+							response.getWriter().write(databaseConnection.delete(hydraRequest.target, hydraRequest.selection).toJSONString());
+						else if (ACTION_SUBROUTINE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.values.length > 0))
+							response.getWriter().write(databaseConnection.subroutine(hydraRequest.target, hydraRequest.values).toJSONString());
+						else {
+							response.setStatus(400);
+							JSONObject j = new JSONObject();
+							JSONArray errors = new JSONArray();
+							errors.add(BAD_REQUEST);
+							j.put("errors", errors);
+							response.getWriter().write(j.toJSONString());
+						}
+						// release the connection
+						databaseConnection.release();
+					}
+				}
+			} else {
+				response.setStatus(400);
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add(BAD_REQUEST);
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+			}
+		} else {
+			response.setStatus(400);
+			JSONObject j = new JSONObject();
+			JSONArray errors = new JSONArray();
+			errors.add(BAD_REQUEST);
+			j.put("errors", errors);
+			response.getWriter().write(j.toJSONString());
+		}
 	}
-	
+
 }

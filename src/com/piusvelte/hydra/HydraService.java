@@ -72,7 +72,7 @@ public class HydraService implements Daemon {
 	protected static final String DB_TYPE_MSSQL = "mssql";
 	protected static final String DB_TYPE_ORACLE = "oracle";
 	protected static final String DB_TYPE_POSTGRESQL = "postgresql";
-	private static String sConnectionPassphrase;
+	private static String saltedPassphrase = null;
 	private static String sSalt;
 	private static String sLogFile = "logs/hydra.log";
 	protected static FileHandler sLogFileHandler = null;
@@ -162,7 +162,7 @@ public class HydraService implements Daemon {
 		if (sLogFileHandler != null)
 			sLogFileHandler.close();
 	}
-	
+
 	private static boolean isRunning() {
 		synchronized (sAcceptThreadLock) {
 			return (sAcceptThread != null);
@@ -231,7 +231,7 @@ public class HydraService implements Daemon {
 					String certFile = null;
 					char[] certPass = null;
 					char[] keystorePass = null;
-					sConnectionPassphrase = properties.getProperty(sPassphrase);
+					setSaltedPassphrase(properties.getProperty(sPassphrase));
 					if (properties.containsKey(sPort))
 						listenPort = Integer.parseInt(properties.getProperty(sPort));
 					HydraService.writeLog(sPort + ": " + listenPort);
@@ -265,25 +265,10 @@ public class HydraService implements Daemon {
 					} catch (IOException e) {
 						e.printStackTrace();
 					}
-					// generate a salt
-					String salt = new BigInteger(256, new SecureRandom()).toString(16);
-					MessageDigest md;
-					try {
-						md = MessageDigest.getInstance("SHA-256");
-						md.update(salt.getBytes("UTF-8"));
-						sSalt = new BigInteger(1, md.digest()).toString(16);
-						if (sSalt.length() > 64) {
-							sSalt = sSalt.substring(0, 64);
-						}
-					} catch (NoSuchAlgorithmException e) {
-						e.printStackTrace();
-					} catch (UnsupportedEncodingException e) {
-						e.printStackTrace();
-					}
 					startQueueThread();
 					// listen for connections
 					synchronized (sAcceptThreadLock) {
-						(sAcceptThread = new AcceptThread(listenPort, connections, sConnectionPassphrase, sSalt, certFile, certPass, keystorePass)).start();
+						(sAcceptThread = new AcceptThread(listenPort, connections, certFile, certPass, keystorePass)).start();
 					}
 				} else {
 					try {
@@ -304,6 +289,10 @@ public class HydraService implements Daemon {
 			sLogger.info(message);
 		else
 			System.out.println(message);
+	}
+
+	protected static synchronized String getSalt() {
+		return sSalt;
 	}
 
 	public static synchronized DatabaseConnection getDatabaseConnection(String database) throws Exception {
@@ -397,19 +386,46 @@ public class HydraService implements Daemon {
 		}
 		return response;
 	}
-
-	protected static String getHashString(String str) throws NoSuchAlgorithmException, UnsupportedEncodingException {
-		MessageDigest md = MessageDigest.getInstance("SHA-256");
-		md.update(str.getBytes("UTF-8"));
-		StringBuffer hexString = new StringBuffer();
-		byte[] hash = md.digest();
-		for (byte b : hash) {
-			if ((0xFF & b) < 0x10)
-				hexString.append("0" + Integer.toHexString((0xFF & b)));
-			else
-				hexString.append(Integer.toHexString(0xFF & b));
+	
+	protected static String getHash64(String in) {
+		String out = null;
+		MessageDigest md;
+		try {
+			md = MessageDigest.getInstance("SHA-256");
+			md.update(in.getBytes("UTF-8"));
+			out = new BigInteger(1, md.digest()).toString(16);
+			StringBuffer hexString = new StringBuffer();
+			byte[] hash = md.digest();
+			for (byte b : hash) {
+				if ((0xFF & b) < 0x10)
+					hexString.append("0" + Integer.toHexString((0xFF & b)));
+				else
+					hexString.append(Integer.toHexString(0xFF & b));
+			}
+			out = hexString.toString();
+			if (out.length() > 64)
+				return out.substring(0, 64);
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
 		}
-		return hexString.toString();
+		return out;
+	}
+
+	private static void setSaltedPassphrase(String passphrase) {
+		sSalt = getHash64(new BigInteger(256, new SecureRandom()).toString(16));
+		saltedPassphrase = getHash64(sSalt + passphrase);
+	}
+
+	public static boolean authenticated(String challenge, String hmac, String requestAuth) {
+		HydraService.writeLog("authenticated: " + requestAuth);
+		if (hmac == null)
+			return false;
+		else if (hmac.equals(getHash64(requestAuth + challenge + saltedPassphrase)))
+			return true;
+		else
+			return false;
 	}
 
 	protected static File getFile(String name) {

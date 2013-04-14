@@ -27,11 +27,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.Socket;
 import java.net.SocketException;
-import java.security.NoSuchAlgorithmException;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -42,25 +40,23 @@ import com.sun.jndi.toolkit.url.Uri;
 
 public class ClientThread extends Thread {
 
-	protected static final String ACTION_ABOUT = "about";
-	protected static final String ACTION_QUERY = "query";
-	protected static final String ACTION_INSERT = "insert";
-	protected static final String ACTION_UPDATE = "update";
-	protected static final String ACTION_EXECUTE = "execute";
-	protected static final String ACTION_SUBROUTINE = "subroutine";
-	protected static final String ACTION_DELETE = "delete";
-	protected static final String BAD_REQUEST = "bad request";
+	static final String ACTION_ABOUT = "about";
+	static final String ACTION_QUERY = "query";
+	static final String ACTION_INSERT = "insert";
+	static final String ACTION_UPDATE = "update";
+	static final String ACTION_EXECUTE = "execute";
+	static final String ACTION_SUBROUTINE = "subroutine";
+	static final String ACTION_DELETE = "delete";
+	static final String BAD_REQUEST = "bad request";
 
 	// socket timeout
 	private static final int sSocketTimeout = 60000;
 
 	private int mClientIndex = 0;
 	private Socket mSocket;
-	private String mPassphrase;
-	private String mSalt;
 	private boolean mKeepAlive = true;
 
-	public ClientThread(Socket socket, int clientIndex, String passphrase, String salt) {
+	public ClientThread(Socket socket, int clientIndex) {
 		mSocket = socket;
 		try {
 			mSocket.setSoTimeout(sSocketTimeout);
@@ -68,8 +64,6 @@ public class ClientThread extends Thread {
 			HydraService.writeLog(e.getMessage());
 		}
 		mClientIndex = clientIndex;
-		mPassphrase = passphrase;
-		mSalt = salt;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -90,147 +84,130 @@ public class ClientThread extends Thread {
 
 		DatabaseConnection databaseConnection = null;
 		HydraRequest hydraRequest = null;
-		// determine database type and get connection
-		//		try {
-
-		// salt the password
-		String saltedPassphrase = null;
+		// send to the salt and challenge for authenticating requests
+		JSONObject o = new JSONObject();
+		o.put(PARAM_SALT, HydraService.getSalt());
+		o.put(PARAM_CHALLENGE, Long.toString(challenge));
 		try {
-			saltedPassphrase = HydraService.getHashString(mSalt + mPassphrase);
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		} catch (UnsupportedEncodingException e) {
+			out.write((o.toString() + "\n").getBytes());
+		} catch (IOException e) {
+			mKeepAlive = false;
 			e.printStackTrace();
 		}
-		if (saltedPassphrase != null) {
-			if (saltedPassphrase.length() > 64)
-				saltedPassphrase = saltedPassphrase.substring(0, 64);
 
-			// send to the salt and challenge for authenticating requests
-			JSONObject o = new JSONObject();
-			o.put(PARAM_SALT, mSalt);
-			o.put(PARAM_CHALLENGE, Long.toString(challenge));
-			try {
-				out.write((o.toString() + "\n").getBytes());
-			} catch (IOException e) {
-				mKeepAlive = false;
-				e.printStackTrace();
+		// requests take the form of:
+		// <type>://<database>/<object>?properties=<p1>,<p2>,...
+
+		// also supports JSON {type:,database:,object:,values:,columns:,values:}
+
+		BufferedReader br = new BufferedReader(new InputStreamReader(in));
+		String line = null;
+		try {
+			line = br.readLine();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		while (mKeepAlive && (line != null) && (line.length() > 0)) {
+			HydraService.writeLog("read: "+line);
+			// get the request before auth for adding to the authentication
+			if (line.startsWith("{")) {
+				JSONObject request = null;
+				try {
+					request = (JSONObject) (new JSONParser().parse(line));
+					hydraRequest = new HydraRequest(request);
+				} catch (ParseException e) {
+					e.printStackTrace();
+				}
+			} else {
+				Uri request = null;
+				try {
+					request = new Uri(line);
+					hydraRequest = new HydraRequest(request);
+				} catch (MalformedURLException e) {
+					e.printStackTrace();
+				}
 			}
+			if ((hydraRequest != null) && HydraService.authenticated(Long.toString(challenge), hydraRequest.getHMAC(), hydraRequest.getRequestAuth())) {
+				JSONObject response;
+				// execute, select, update, insert, delete
+				if (ACTION_ABOUT.equals(hydraRequest.action) && (hydraRequest.database.length() == 0))
+					response = HydraService.getDatabases();
+				else if (hydraRequest.database != null) {
+					if (ACTION_ABOUT.equals(hydraRequest.action))
+						response = HydraService.getDatabase(hydraRequest.database);
+					else {
+						try {
+							databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						if (databaseConnection == null) {
+							// queue
+							response = new JSONObject();
+							JSONArray errors = new JSONArray();
+							errors.add("no database connection");
+							if (hydraRequest.queueable) {
+								HydraService.queueRequest(hydraRequest.getRequest());
+								errors.add("queued");
+							}
+							response.put("errors", errors);
+						} else {
+							if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
+								response = databaseConnection.execute(hydraRequest.target);
+							else if (ACTION_QUERY.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0))
+								response = databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection);
+							else if (ACTION_UPDATE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
+								response = databaseConnection.update(hydraRequest.target, hydraRequest.columns, hydraRequest.values, hydraRequest.selection);
+							else if (ACTION_INSERT.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
+								response = databaseConnection.insert(hydraRequest.target, hydraRequest.columns, hydraRequest.values);
+							else if (ACTION_DELETE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
+								response = databaseConnection.delete(hydraRequest.target, hydraRequest.selection);
+							else if (ACTION_SUBROUTINE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.values.length > 0))
+								response = databaseConnection.subroutine(hydraRequest.target, hydraRequest.values);
+							else {
+								response = new JSONObject();
+								JSONArray errors = new JSONArray();
+								errors.add(BAD_REQUEST);
+								response.put("errors", errors);
+							}
+							// release the connection
+							databaseConnection.release();
+						}
+					}
+				} else {
+					response = new JSONObject();
+					JSONArray errors = new JSONArray();
+					errors.add(BAD_REQUEST);
+					response.put("errors", errors);
+				}
 
-			// requests take the form of:
-			// <type>://<database>/<object>?properties=<p1>,<p2>,...
+				// update the challenge
+				challenge = System.currentTimeMillis();
+				response.put("challenge", Long.toString(challenge));
 
-			// also supports JSON {type:,database:,object:,values:,columns:,values:}
-
-			BufferedReader br = new BufferedReader(new InputStreamReader(in));
-			String line = null;
+				HydraService.writeLog("response:"+response);
+				try {
+					out.write((response.toString() + "\n").getBytes());
+				} catch (IOException e) {
+					mKeepAlive = false;
+					e.printStackTrace();
+				}
+			} else {
+				JSONObject response = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add(BAD_REQUEST);
+				response.put("errors", errors);
+				try {
+					out.write(response.toString().getBytes());
+				} catch (IOException e) {
+					mKeepAlive = false;
+					HydraService.writeLog(e.getMessage());
+				}
+			}
 			try {
 				line = br.readLine();
 			} catch (IOException e) {
 				e.printStackTrace();
-			}
-			while (mKeepAlive && (line != null) && (line.length() > 0)) {
-				HydraService.writeLog("read: "+line);
-				// get the request before auth for adding to the authentication
-				if (line.startsWith("{")) {
-					JSONObject request = null;
-					try {
-						request = (JSONObject) (new JSONParser().parse(line));
-						hydraRequest = new HydraRequest(request);
-					} catch (ParseException e) {
-						e.printStackTrace();
-					}
-				} else {
-					Uri request = null;
-					try {
-						request = new Uri(line);
-						hydraRequest = new HydraRequest(request);
-					} catch (MalformedURLException e) {
-						e.printStackTrace();
-					}
-				}
-				if ((hydraRequest != null) && hydraRequest.authenticated(challenge, saltedPassphrase)) {
-					JSONObject response;
-					// execute, select, update, insert, delete
-					if (ACTION_ABOUT.equals(hydraRequest.action) && (hydraRequest.database.length() == 0))
-						response = HydraService.getDatabases();
-					else if (hydraRequest.database != null) {
-						if (ACTION_ABOUT.equals(hydraRequest.action))
-							response = HydraService.getDatabase(hydraRequest.database);
-						else {
-							try {
-								databaseConnection = HydraService.getDatabaseConnection(hydraRequest.database);
-							} catch (Exception e) {
-								e.printStackTrace();
-							}
-							if (databaseConnection == null) {
-								// queue
-								response = new JSONObject();
-								JSONArray errors = new JSONArray();
-								errors.add("no database connection");
-								if (hydraRequest.queueable) {
-									HydraService.queueRequest(hydraRequest.getRequest());
-									errors.add("queued");
-								}
-								response.put("errors", errors);
-							} else {
-								if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
-									response = databaseConnection.execute(hydraRequest.target);
-								else if (ACTION_QUERY.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0))
-									response = databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection);
-								else if (ACTION_UPDATE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
-									response = databaseConnection.update(hydraRequest.target, hydraRequest.columns, hydraRequest.values, hydraRequest.selection);
-								else if (ACTION_INSERT.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.columns.length > 0) && (hydraRequest.values.length > 0))
-									response = databaseConnection.insert(hydraRequest.target, hydraRequest.columns, hydraRequest.values);
-								else if (ACTION_DELETE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))
-									response = databaseConnection.delete(hydraRequest.target, hydraRequest.selection);
-								else if (ACTION_SUBROUTINE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0) && (hydraRequest.values.length > 0))
-									response = databaseConnection.subroutine(hydraRequest.target, hydraRequest.values);
-								else {
-									response = new JSONObject();
-									JSONArray errors = new JSONArray();
-									errors.add(BAD_REQUEST);
-									response.put("errors", errors);
-								}
-								// release the connection
-								databaseConnection.release();
-							}
-						}
-					} else {
-						response = new JSONObject();
-						JSONArray errors = new JSONArray();
-						errors.add(BAD_REQUEST);
-						response.put("errors", errors);
-					}
-
-					// update the challenge
-					challenge = System.currentTimeMillis();
-					response.put("challenge", Long.toString(challenge));
-
-					HydraService.writeLog("response:"+response);
-					try {
-						out.write((response.toString() + "\n").getBytes());
-					} catch (IOException e) {
-						mKeepAlive = false;
-						e.printStackTrace();
-					}
-				} else {
-					JSONObject response = new JSONObject();
-					JSONArray errors = new JSONArray();
-					errors.add(BAD_REQUEST);
-					response.put("errors", errors);
-					try {
-						out.write(response.toString().getBytes());
-					} catch (IOException e) {
-						mKeepAlive = false;
-						HydraService.writeLog(e.getMessage());
-					}
-				}
-				try {
-					line = br.readLine();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
 			}
 		}
 		// clean up everything

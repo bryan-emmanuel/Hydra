@@ -23,8 +23,9 @@ import static com.piusvelte.hydra.ClientThread.ACTION_ABOUT;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+
+import javax.servlet.http.HttpServletRequest;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -81,6 +82,35 @@ public class HydraRequest {
 		for (String s : values)
 			requestAuth += s;
 		requestAuth += selection + q;
+	}
+	
+	HydraRequest(HttpServletRequest request) {
+		action = request.getParameter(PARAM_ACTION);
+		database = request.getParameter(PARAM_DATABASE);
+		target = request.getParameter(PARAM_TARGET);
+		columns = request.getParameterValues(PARAM_COLUMNS);
+		values = request.getParameterValues(PARAM_VALUES);
+		selection = request.getParameter(PARAM_SELECTION);
+		String q = request.getParameter(PARAM_QUEUEABLE);
+		if (q == null)
+			q = "";
+		else
+			queueable = Boolean.parseBoolean(q);
+		hmac = request.getParameter(PARAM_HMAC);
+		requestAuth = action + database + target;
+		for (String s : columns)
+			requestAuth += s;
+		for (String s : values)
+			requestAuth += s;
+		requestAuth += selection + q;
+	}
+	
+	String getHMAC() {
+		return hmac;
+	}
+	
+	String getRequestAuth() {
+		return requestAuth;
 	}
 	
 	@SuppressWarnings("unchecked")
@@ -149,25 +179,6 @@ public class HydraRequest {
 				}
 			}
 		}
-	}
-
-	boolean authenticated(long challenge, String saltedPassphrase) {
-		HydraService.writeLog("requestAuth: " + requestAuth);
-		String passphrase;
-		try {
-			passphrase = HydraService.getHashString(requestAuth + Long.toString(challenge) + saltedPassphrase);
-			if (passphrase.length() > 64)
-				passphrase = passphrase.substring(0, 64);
-			if (hmac == null)
-				return false;
-			else
-				return hmac.equals(passphrase);
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		} catch (UnsupportedEncodingException e) {
-			e.printStackTrace();
-		}
-		return false;
 	}
 
 	String[] parseArray(JSONArray jarr) {

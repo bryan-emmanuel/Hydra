@@ -42,15 +42,11 @@ public class AcceptThread extends Thread {
 	public static final int DEFAULT_CONNECTIONS = -1;
 	private int mConnections;
 	private ArrayList<ClientThread> mClientThreads = new ArrayList<ClientThread>();
-	private String mPassphrase;
-	private String mSalt;
 	private ServerSocket mServerSocket = null;
 
-	public AcceptThread(int listenPort, int connections, String passphrase, String salt, String certFile, char[] certPass, char[] keystorePass) {
+	public AcceptThread(int listenPort, int connections, String certFile, char[] certPass, char[] keystorePass) {
 		mListenPort = listenPort;
 		mConnections = connections;
-		mPassphrase = passphrase;
-		mSalt = salt;
 		if ((certFile != null) && (certPass != null)) {
 			HydraService.writeLog("create SSL socket");
 			SSLContext sc = null;
@@ -145,7 +141,7 @@ public class AcceptThread extends Thread {
 				HydraService.writeLog("listening...");
 				Socket clientSocket = mServerSocket.accept();
 				if ((mConnections == DEFAULT_CONNECTIONS) || (mClientThreads.size() < mConnections)) {
-					ClientThread clientThread = new ClientThread(clientSocket, mClientThreads.size(), mPassphrase, mSalt);
+					ClientThread clientThread = new ClientThread(clientSocket, mClientThreads.size());
 					mClientThreads.add(clientThread);
 					clientThread.start();
 					HydraService.writeLog("...start thread");
