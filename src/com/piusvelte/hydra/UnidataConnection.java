@@ -96,10 +96,8 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", parseMultiValues(uCommand.response()));
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		} catch (UniCommandException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		}
 		response.put("errors", errors);
 		return response;
@@ -135,23 +133,18 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		} catch (UniCommandException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		} catch (UniFileException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		} catch (UniSelectListException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (uFile != null) {
 				try {
 					uFile.close();
 				} catch (UniFileException e) {
 					errors.add(e.getMessage());
-					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -232,23 +225,18 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", result);
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		} catch (UniCommandException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		} catch (UniFileException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		} catch (UniSelectListException e) {
 			errors.add(e.getMessage());
-			HydraService.writeLog(e.getMessage());
 		} finally {
 			if (uFile != null) {
 				try {
 					uFile.close();
 				} catch (UniFileException e) {
 					errors.add(e.getMessage());
-					HydraService.writeLog(e.getMessage());
 				}
 			}
 		}
@@ -338,10 +326,8 @@ public class UnidataConnection extends DatabaseConnection {
 			response.put("result", vals);
 		} catch (UniSessionException e) {
 			e.printStackTrace();
-			HydraService.writeLog(e.getMessage());
 		} catch (UniSubroutineException e) {
 			e.printStackTrace();
-			HydraService.writeLog(e.getMessage());
 		}
 		return response;
 	}
