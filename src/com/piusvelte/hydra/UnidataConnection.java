@@ -166,18 +166,34 @@ public class UnidataConnection extends DatabaseConnection {
 			errors.add("error opening file: " + object + ": " + e.getMessage());
 		}
 		if (uFile != null) {
-			//TODO need to get the next key
-			UniString recordId = new UniString("key");
-			uFile.setRecord(recordId);
-			boolean fieldsWritten = true;
-			for (int c = 0, cl = columns.length; c < cl; c++) {
-				if (c < values.length) {
-					try {
-						uFile.writeNamedField(columns[c], values[c]);
-					} catch (UniFileException e) {
-						e.printStackTrace();
-						fieldsWritten = false;
-						errors.add("error writing field: " + columns[c] + "=" + values[c] + ": " + e.getMessage());
+			//TODO: need to read the file dictionary and assemble the key fields to get the record id
+			UniString recordId = null;
+			int i = 0;
+			while ((recordId == null) && (i < columns.length) && (i < values.length)) {
+				if ("@ID".equals(columns[i])) {
+					recordId = new UniString(values[i]);
+					break;
+				}
+				i++;
+			}
+			boolean fieldsWritten = false;
+			if (recordId != null) {
+				try {
+					uFile.setRecordID(recordId);
+				} catch (UniFileException e) {
+					e.printStackTrace();
+					fieldsWritten = false;
+				}
+				fieldsWritten = true;
+				for (int c = 0, cl = columns.length; c < cl; c++) {
+					if (c < values.length) {
+						try {
+							uFile.writeNamedField(columns[c], values[c]);
+						} catch (UniFileException e) {
+							e.printStackTrace();
+							fieldsWritten = false;
+							errors.add("error writing field: " + columns[c] + "=" + values[c] + ": " + e.getMessage());
+						}
 					}
 				}
 			}

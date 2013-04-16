@@ -35,9 +35,9 @@ public class QueueThread extends Thread {
 	public static final int DEFAULT_QUEUERETRYINTERVAL = 300000;
 	protected int mQueueRetryInterval = DEFAULT_QUEUERETRYINTERVAL;
 	private boolean mKeepAlive = true;
-	private HydraService hydraService;
+	private ConnectionManager hydraService;
 
-	public QueueThread(HydraService hydraService, int queueRetryInterval) {
+	public QueueThread(ConnectionManager hydraService, int queueRetryInterval) {
 		this.hydraService = hydraService;
 		mQueueRetryInterval = queueRetryInterval;
 	}

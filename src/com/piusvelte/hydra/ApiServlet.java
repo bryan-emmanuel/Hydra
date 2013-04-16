@@ -31,14 +31,14 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 @WebServlet("/api/*")
-public class HydraServlet extends HttpServlet {
+public class ApiServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
 
 	static final int DATABASE = 0;
 	static final int TARGET = 1;
 
-	static final String PARAM_HMAC = "hmac";
+	static final String PARAM_TOKEN = "token";
 	static final String PARAM_COLUMNS = "columns";
 	static final String PARAM_SELECTION = "selection";
 	static final String PARAM_VALUES = "values";
@@ -78,20 +78,6 @@ public class HydraServlet extends HttpServlet {
 		return parts;
 	}
 
-	private String getRequestAuth(String database, String target, String[] columns, String[] values, String selection, String queueable) {
-		String requestAuth = database + target;
-		if (columns != null) {
-			for (String c : columns)
-				requestAuth += c;
-		}
-		if (values != null) {
-			for (String v : values)
-				requestAuth += v;
-		}
-		requestAuth += selection + queueable;
-		return requestAuth;
-	}
-
 	private String getQueuedRequest(String action, String database, String target, String[] columns, String[] values, String selection, boolean queueable) {
 		JSONObject request = new JSONObject();
 		request.put(PARAM_ACTION, action);
@@ -126,19 +112,19 @@ public class HydraServlet extends HttpServlet {
 			q = "";
 		else
 			queueable = Boolean.parseBoolean(q);
-		HydraService hydraService = HydraService.getService(getServletContext());
-		if (hydraService.isAuthenticated(request.getParameter(PARAM_HMAC), getRequestAuth(database, target, columns, values, selection, q))) {
+		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
 			if (database != null) {
 				if (target != null) {
 					DatabaseConnection databaseConnection = null;
-					hydraService.queueDatabaseRequest(database);
+					connMgr.queueDatabaseRequest(database);
 					try {
 						while (databaseConnection == null)
-							databaseConnection = hydraService.getDatabaseConnection(database);
+							databaseConnection = connMgr.getDatabaseConnection(database);
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
-					hydraService.dequeueDatabaseRequest(database);
+					connMgr.dequeueDatabaseRequest(database);
 					if (databaseConnection != null) {
 						response.getWriter().write(databaseConnection.query(target, columns, selection).toJSONString());
 						databaseConnection.release();
@@ -146,18 +132,18 @@ public class HydraServlet extends HttpServlet {
 						JSONObject j = new JSONObject();
 						JSONArray errors = new JSONArray();
 						errors.add("no database connection");
-						hydraService.queueRequest(getQueuedRequest(ACTION_QUERY, database, target, columns, values, selection, queueable));
+						connMgr.queueRequest(getQueuedRequest(ACTION_QUERY, database, target, columns, values, selection, queueable));
 						errors.add("queued");
 						response.setStatus(200);
 						j.put("errors", errors);
 						response.getWriter().write(j.toJSONString());
 					} else
 						response.setStatus(502);
-					hydraService.cleanDatabaseConnections(database);
+					connMgr.cleanDatabaseConnections(database);
 				} else
-					response.getWriter().write(hydraService.getDatabase(database).toJSONString());
+					response.getWriter().write(connMgr.getDatabase(database).toJSONString());
 			} else
-				response.getWriter().write(hydraService.getDatabases().toJSONString());
+				response.getWriter().write(connMgr.getDatabases().toJSONString());
 		} else {
 			response.getWriter().write("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Hydra</title></head><body><h3>Hydra API</h3>");
 			response.setStatus(401);
@@ -180,19 +166,19 @@ public class HydraServlet extends HttpServlet {
 			q = "";
 		else
 			queueable = Boolean.parseBoolean(q);
-		HydraService hydraService = HydraService.getService(getServletContext());
-		if (hydraService.isAuthenticated(request.getParameter(PARAM_HMAC), getRequestAuth(database, target, columns, values, selection, q))) {
+		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
 			if ((database != null) && (target != null)) {
 				String action = null;
 				DatabaseConnection databaseConnection = null;
-				hydraService.queueDatabaseRequest(database);
+				connMgr.queueDatabaseRequest(database);
 				try {
 					while (databaseConnection == null)
-						databaseConnection = hydraService.getDatabaseConnection(database);
+						databaseConnection = connMgr.getDatabaseConnection(database);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-				hydraService.dequeueDatabaseRequest(database);
+				connMgr.dequeueDatabaseRequest(database);
 				if (databaseConnection != null) {
 					if (columns.length > 0) {
 						action = ACTION_INSERT;
@@ -209,14 +195,14 @@ public class HydraServlet extends HttpServlet {
 					JSONObject j = new JSONObject();
 					JSONArray errors = new JSONArray();
 					errors.add("no database connection");
-					hydraService.queueRequest(getQueuedRequest(action, database, target, columns, values, selection, queueable));
+					connMgr.queueRequest(getQueuedRequest(action, database, target, columns, values, selection, queueable));
 					errors.add("queued");
 					response.setStatus(200);
 					j.put("errors", errors);
 					response.getWriter().write(j.toJSONString());
 				} else
 					response.setStatus(502);
-				hydraService.cleanDatabaseConnections(database);
+				connMgr.cleanDatabaseConnections(database);
 			} else
 				response.setStatus(402);
 		} else {
@@ -240,18 +226,18 @@ public class HydraServlet extends HttpServlet {
 			q = "";
 		else
 			queueable = Boolean.parseBoolean(q);
-		HydraService hydraService = HydraService.getService(getServletContext());
-		if (hydraService.isAuthenticated(request.getParameter(PARAM_HMAC), getRequestAuth(database, target, columns, values, selection, q))) {
+		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
 			if ((database != null) && (target != null)) {
 				DatabaseConnection databaseConnection = null;
-				hydraService.queueDatabaseRequest(database);
+				connMgr.queueDatabaseRequest(database);
 				try {
 					while (databaseConnection == null)
-						databaseConnection = hydraService.getDatabaseConnection(database);
+						databaseConnection = connMgr.getDatabaseConnection(database);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-				hydraService.dequeueDatabaseRequest(database);
+				connMgr.dequeueDatabaseRequest(database);
 				if (databaseConnection != null) {
 					response.getWriter().write(databaseConnection.query(target, columns, selection).toJSONString());
 					databaseConnection.release();
@@ -259,14 +245,14 @@ public class HydraServlet extends HttpServlet {
 					JSONObject j = new JSONObject();
 					JSONArray errors = new JSONArray();
 					errors.add("no database connection");
-					hydraService.queueRequest(getQueuedRequest(ACTION_UPDATE, database, target, columns, values, selection, queueable));
+					connMgr.queueRequest(getQueuedRequest(ACTION_UPDATE, database, target, columns, values, selection, queueable));
 					errors.add("queued");
 					response.setStatus(200);
 					j.put("errors", errors);
 					response.getWriter().write(j.toJSONString());
 				} else
 					response.setStatus(502);
-				hydraService.cleanDatabaseConnections(database);
+				connMgr.cleanDatabaseConnections(database);
 			} else
 				response.setStatus(402);
 		} else {
@@ -290,18 +276,18 @@ public class HydraServlet extends HttpServlet {
 			q = "";
 		else
 			queueable = Boolean.parseBoolean(q);
-		HydraService hydraService = HydraService.getService(getServletContext());
-		if (hydraService.isAuthenticated(request.getParameter(PARAM_HMAC), getRequestAuth(database, target, columns, values, selection, q))) {
+		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
 			if ((database != null) && (target != null)) {
 				DatabaseConnection databaseConnection = null;
-				hydraService.queueDatabaseRequest(database);
+				connMgr.queueDatabaseRequest(database);
 				try {
 					while (databaseConnection == null)
-						databaseConnection = hydraService.getDatabaseConnection(database);
+						databaseConnection = connMgr.getDatabaseConnection(database);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-				hydraService.dequeueDatabaseRequest(database);
+				connMgr.dequeueDatabaseRequest(database);
 				if (databaseConnection != null) {
 					response.getWriter().write(databaseConnection.query(target, columns, selection).toJSONString());
 					databaseConnection.release();
@@ -309,14 +295,14 @@ public class HydraServlet extends HttpServlet {
 					JSONObject j = new JSONObject();
 					JSONArray errors = new JSONArray();
 					errors.add("no database connection");
-					hydraService.queueRequest(getQueuedRequest(ACTION_DELETE, database, target, columns, values, selection, queueable));
+					connMgr.queueRequest(getQueuedRequest(ACTION_DELETE, database, target, columns, values, selection, queueable));
 					errors.add("queued");
 					response.setStatus(200);
 					j.put("errors", errors);
 					response.getWriter().write(j.toJSONString());
 				} else
 					response.setStatus(502);
-				hydraService.cleanDatabaseConnections(database);
+				connMgr.cleanDatabaseConnections(database);
 			} else
 				response.setStatus(402);
 		} else {

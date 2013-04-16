@@ -30,6 +30,7 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -41,10 +42,10 @@ import javax.servlet.ServletContext;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-public class HydraService {
+public class ConnectionManager {
 
 	private static final String sPassphrase = "passphrase";
-	private static final String sQueue = "queue";
+	private static final String sHydra = "hydra";
 	private static final String sDatabases = "databases";
 	private static final String sAlias = "alias";
 	private static final String sType = "type";
@@ -63,20 +64,24 @@ public class HydraService {
 	protected static final String DB_TYPE_MSSQL = "mssql";
 	protected static final String DB_TYPE_ORACLE = "oracle";
 	protected static final String DB_TYPE_POSTGRESQL = "postgresql";
-	private static String passphrase = null;
-	private static int[] databaseLock = new int[0];
-	private static HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
-	private static HashMap<String, ArrayList<DatabaseConnection>> sDatabaseConnections = new HashMap<String, ArrayList<DatabaseConnection>>();
-	private static HashMap<String, Integer> queuedDatabaseRequests = new HashMap<String, Integer>();
-	private static String sQueueFileName = null;
-	private static int[] sQueueLock = new int[0];
-	private static String sHydraProperties = "/WEB-INF/hydra.properties";
-	private static QueueThread sQueueThread = null;
-	private static int mQueueRetryInterval;
+	private String passphrase = null;
+	private int[] databaseLock = new int[0];
+	private HashMap<String, HashMap<String, String>> sDatabaseSettings = new HashMap<String, HashMap<String, String>>();
+	private HashMap<String, ArrayList<DatabaseConnection>> sDatabaseConnections = new HashMap<String, ArrayList<DatabaseConnection>>();
+	private HashMap<String, Integer> queuedDatabaseRequests = new HashMap<String, Integer>();
+	private String sHydraDir = null;
+	private String sQueueFile = null;
+	private String tokenFile = null;
+	private int[] sQueueLock = new int[0];
+	private String sHydraProperties = "/WEB-INF/hydra.properties";
+	private QueueThread sQueueThread = null;
+	private int mQueueRetryInterval;
+	private int[] tokenLock = new int[0];
+	private ArrayList<String> tokens = new ArrayList<String>();
 
-	private static HydraService hydraService = null;
+	private static ConnectionManager hydraService = null;
 
-	private HydraService(ServletContext ctx) {
+	private ConnectionManager(ServletContext ctx) {
 
 		mQueueRetryInterval = QueueThread.DEFAULT_QUEUERETRYINTERVAL;
 
@@ -91,14 +96,19 @@ public class HydraService {
 		if (properties != null) {
 			if (properties.containsKey(sPassphrase))
 				passphrase = properties.getProperty(sPassphrase);
-			if (properties.containsKey(sQueue)) {
-				sQueueFileName = properties.getProperty(sQueue);
-				if (sQueueFileName.length() > 0) {
-					if (!File.pathSeparator.equals(sQueueFileName.substring(sQueueFileName.length() - 1, sQueueFileName.length())))
-						sQueueFileName += File.pathSeparator;
-					sQueueFileName += "queue.log";
-				} else
-					sQueueFileName = null;
+			if (properties.containsKey(sHydra)) {
+				sHydraDir = properties.getProperty(sHydra);
+				if (sHydraDir.length() > 0) {
+					if (!File.pathSeparator.equals(sHydraDir.substring(sHydraDir.length() - 1, sHydraDir.length())))
+						sHydraDir += File.pathSeparator;
+					sQueueFile = sHydraDir + "queue";
+					tokenFile = sHydraDir + "tokens";
+					try {
+						loadTokens();
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+				}
 			}
 			if (properties.containsKey(sQueueRetryInterval))
 				mQueueRetryInterval = Integer.parseInt(properties.getProperty(sQueueRetryInterval));
@@ -119,11 +129,10 @@ public class HydraService {
 		}
 	}
 
-	public static HydraService getService(ServletContext ctx) {
+	public static ConnectionManager getService(ServletContext ctx) {
 		if (hydraService == null) {
-			hydraService = new HydraService(ctx);
-			if (sQueueFileName != null)
-				hydraService.startQueueThread();
+			hydraService = new ConnectionManager(ctx);
+			hydraService.startQueueThread();
 		}
 		return hydraService;
 	}
@@ -263,13 +272,11 @@ public class HydraService {
 		return out;
 	}
 
-	public boolean isAuthenticated(String hmac, String requestAuth) {
-		if (hmac == null)
+	public boolean isAuthenticated(String token) {
+		if (token == null)
 			return false;
-		else if (hmac.equals(getHash64(requestAuth + passphrase)))
-			return true;
 		else
-			return false;
+			return tokens.contains(token);
 	}
 
 	static File getFile(String name) {
@@ -286,11 +293,95 @@ public class HydraService {
 		return f;
 	}
 
+	void loadTokens() throws Exception {
+		if (tokenFile != null) {
+			synchronized (tokenLock) {
+				File f = getFile(tokenFile);
+				if (f != null) {
+					FileReader fr = null;
+					try {
+						fr = new FileReader(f);
+					} catch (FileNotFoundException e) {
+						e.printStackTrace();
+						throw new Exception("error loading tokens file");
+					}
+					BufferedReader br = new BufferedReader(fr);
+					String r = null;
+					try {
+						r = br.readLine();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					while (r != null) {
+						tokens.add(getHash64(r + passphrase));
+						try {
+							r = br.readLine();
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+					}
+					try {
+						br.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+					try {
+						fr.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+			}
+		}
+	}
+
+	String createToken() throws Exception {
+		if (tokenFile != null) {
+			String token = new BigInteger(256, new SecureRandom()).toString(16);
+			MessageDigest md;
+			try {
+				md = MessageDigest.getInstance("SHA-256");
+				md.update(token.getBytes("UTF-8"));
+				token = new BigInteger(1, md.digest()).toString(16);
+				if (token.length() > 64)
+					token = token.substring(0, 64);
+			} catch (NoSuchAlgorithmException e) {
+				e.printStackTrace();
+				throw new Exception("error generating token");
+			} catch (UnsupportedEncodingException e) {
+				e.printStackTrace();
+				throw new Exception("error generating token");
+			}
+			synchronized (tokenLock) {
+				File f = getFile(tokenFile);
+				if (f != null) {
+					FileWriter fw = null;
+					try {
+						fw = new FileWriter(f, true);
+					} catch (IOException e) {
+						e.printStackTrace();
+						throw new Exception("error storing token");
+					}
+					PrintWriter pw = new PrintWriter(fw);
+					pw.println(token);
+					pw.close();
+					try {
+						fw.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+				return token;
+			}
+		} else
+			throw new Exception("no tokens available");
+	}
+
 	boolean queueRequest(String request) {
 		boolean queued = false;
-		if (sQueueFileName != null) {
+		if (sQueueFile != null) {
 			synchronized (sQueueLock) {
-				File queueFile = getFile(sQueueFileName);
+				File queueFile = getFile(sQueueFile);
 				if (queueFile != null) {
 					FileWriter fw = null;
 					try {
@@ -320,7 +411,7 @@ public class HydraService {
 
 	String dequeueRequest() {
 		synchronized (sQueueLock) {
-			File queueFile = getFile(sQueueFileName);
+			File queueFile = getFile(sQueueFile);
 			if (queueFile != null) {
 				FileReader fr = null;
 				try {
@@ -357,7 +448,7 @@ public class HydraService {
 	void requeueRequest(String request) {
 		ArrayList<String> requests = new ArrayList<String>();
 		synchronized (sQueueLock) {
-			File queueFile = getFile(sQueueFileName);
+			File queueFile = getFile(sQueueFile);
 			if (queueFile != null) {
 				FileReader fr = null;
 				try {
@@ -423,11 +514,12 @@ public class HydraService {
 	}
 
 	void startQueueThread() {
-		synchronized (sQueueLock) {
-			// start the queue thread
-			if (sQueueThread == null) {
-				sQueueThread = new QueueThread(this, mQueueRetryInterval);
-				sQueueThread.start();
+		if (sQueueFile != null) {
+			synchronized (sQueueLock) {
+				if (sQueueThread == null) {
+					sQueueThread = new QueueThread(this, mQueueRetryInterval);
+					sQueueThread.start();
+				}
 			}
 		}
 	}
