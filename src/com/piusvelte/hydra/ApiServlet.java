@@ -20,6 +20,7 @@
 package com.piusvelte.hydra;
 
 import java.io.IOException;
+import java.net.URLDecoder;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -42,6 +43,8 @@ public class ApiServlet extends HttpServlet {
 	static final String PARAM_COLUMNS = "columns";
 	static final String PARAM_SELECTION = "selection";
 	static final String PARAM_VALUES = "values";
+	static final String PARAM_ARGUMENTS = "arguments";
+	static final String PARAM_COMMAND = "command";
 	static final String PARAM_QUEUEABLE = "queueable";
 	static final String PARAM_TARGET = "target";
 	static final String PARAM_ACTION = "action";
@@ -160,6 +163,8 @@ public class ApiServlet extends HttpServlet {
 		String[] columns = request.getParameterValues(PARAM_COLUMNS);
 		String[] values = request.getParameterValues(PARAM_VALUES);
 		String selection = request.getParameter(PARAM_SELECTION);
+		String[] arguments = request.getParameterValues(PARAM_ARGUMENTS);
+		String command = request.getParameter(PARAM_ARGUMENTS);
 		String q = request.getParameter(PARAM_QUEUEABLE);
 		boolean queueable = false;
 		if (q == null)
@@ -168,7 +173,7 @@ public class ApiServlet extends HttpServlet {
 			queueable = Boolean.parseBoolean(q);
 		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
 		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
-			if ((database != null) && (target != null)) {
+			if (database != null) {
 				String action = null;
 				DatabaseConnection databaseConnection = null;
 				connMgr.queueDatabaseRequest(database);
@@ -183,12 +188,19 @@ public class ApiServlet extends HttpServlet {
 					if (columns.length > 0) {
 						action = ACTION_INSERT;
 						response.getWriter().write(databaseConnection.insert(target, columns, values).toJSONString());
-					} else if (values.length > 0) {
+					} else if (arguments.length > 0) {
 						action = ACTION_SUBROUTINE;
-						response.getWriter().write(databaseConnection.subroutine(target, values).toJSONString());
-					} else {
+						response.getWriter().write(databaseConnection.subroutine(target, arguments).toJSONString());
+					} else if (command != null) {
 						action = ACTION_EXECUTE;
-						response.getWriter().write(databaseConnection.execute(target).toJSONString());
+						response.getWriter().write(databaseConnection.execute(command).toJSONString());
+					} else {
+						JSONObject j = new JSONObject();
+						JSONArray errors = new JSONArray();
+						errors.add("invalid request");
+						response.setStatus(403);
+						j.put("errors", errors);
+						response.getWriter().write(j.toJSONString());
 					}
 					databaseConnection.release();
 				} else if (queueable) {

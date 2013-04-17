@@ -30,22 +30,36 @@ import javax.servlet.http.HttpServletResponse;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-@WebServlet("/api/*")
+@WebServlet("/auth")
 public class AuthServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
-	
+
 	public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
 		JSONObject j = new JSONObject();
-		try {
-			j.put("result", connMgr.createToken());
-		} catch (Exception e) {
-			e.printStackTrace();
-			JSONArray errors = new JSONArray();
-			errors.add(e.getMessage());
-			j.put("errors", errors);
-			response.setStatus(403);
+		String token = request.getParameter("token");
+		if ((token != null) && (token.length() > 0)) {
+			try {
+				connMgr.authorizeToken(token);
+				j.put("result", token);
+			} catch (Exception e) {
+				e.printStackTrace();
+				JSONArray errors = new JSONArray();
+				errors.add(e.getMessage());
+				j.put("errors", errors);
+				response.setStatus(403);
+			}
+		} else {
+			try {
+				j.put("result", connMgr.createToken());
+			} catch (Exception e) {
+				e.printStackTrace();
+				JSONArray errors = new JSONArray();
+				errors.add(e.getMessage());
+				j.put("errors", errors);
+				response.setStatus(403);
+			}
 		}
 		response.getWriter().write(j.toJSONString());
 	}

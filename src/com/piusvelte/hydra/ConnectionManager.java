@@ -78,6 +78,7 @@ public class ConnectionManager {
 	private int mQueueRetryInterval;
 	private int[] tokenLock = new int[0];
 	private ArrayList<String> tokens = new ArrayList<String>();
+	private HashMap<String, String> unauthorizedTokens = new HashMap<String, String>();
 
 	private static ConnectionManager hydraService = null;
 
@@ -353,25 +354,37 @@ public class ConnectionManager {
 				throw new Exception("error generating token");
 			}
 			synchronized (tokenLock) {
-				File f = getFile(tokenFile);
-				if (f != null) {
-					FileWriter fw = null;
-					try {
-						fw = new FileWriter(f, true);
-					} catch (IOException e) {
-						e.printStackTrace();
-						throw new Exception("error storing token");
-					}
-					PrintWriter pw = new PrintWriter(fw);
-					pw.println(token);
-					pw.close();
-					try {
-						fw.close();
-					} catch (IOException e) {
-						e.printStackTrace();
+				unauthorizedTokens.put(getHash64(token + passphrase), token);
+				return token;
+			}
+		} else
+			throw new Exception("no tokens available");
+	}
+
+	void authorizeToken(String token) throws Exception {
+		if (tokenFile != null) {
+			synchronized (tokenLock) {
+				if (unauthorizedTokens.containsKey(token)) {
+					File f = getFile(tokenFile);
+					if (f != null) {
+						FileWriter fw = null;
+						try {
+							fw = new FileWriter(f, true);
+						} catch (IOException e) {
+							e.printStackTrace();
+							throw new Exception("error storing token");
+						}
+						PrintWriter pw = new PrintWriter(fw);
+						pw.println(unauthorizedTokens.get(token));
+						pw.close();
+						try {
+							fw.close();
+						} catch (IOException e) {
+							e.printStackTrace();
+						}
+						unauthorizedTokens.remove(token);
 					}
 				}
-				return token;
 			}
 		} else
 			throw new Exception("no tokens available");
