@@ -279,14 +279,6 @@ public class ConnectionManager {
 		else
 			return tokens.contains(token);
 	}
-	
-	//TODO
-	public String getTokens() {
-		String t = "";
-		for (String token : tokens)
-			t += "," + token;
-		return t;
-	}
 
 	static File getFile(String name) {
 		File f = new File(name);
