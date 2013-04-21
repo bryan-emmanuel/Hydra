@@ -42,7 +42,6 @@ public class AuthServlet extends HttpServlet {
 		if ((token != null) && (token.length() > 0)) {
 			try {
 				connMgr.authorizeToken(token);
-				j.put("result", token);
 			} catch (Exception e) {
 				e.printStackTrace();
 				JSONArray errors = new JSONArray();

@@ -65,7 +65,8 @@ public class ApiServlet extends HttpServlet {
 	 *  DELETE - delete
 	 */
 
-	private String[] getPathParts(String path) {
+	private String[] getPathParts(HttpServletRequest request) {
+		String path = request.getRequestURI().substring(request.getContextPath().length() + 4);
 		String[] parts = new String[]{null, null};
 		if (path.length() > 0) {
 			if (path.substring(0, 1).equals("/"))
@@ -103,7 +104,7 @@ public class ApiServlet extends HttpServlet {
 	 * query
 	 */
 	public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		String[] parts = getPathParts(request.getRequestURI().substring(request.getContextPath().length()));
+		String[] parts = getPathParts(request);
 		String database = parts[DATABASE];
 		String target = parts[TARGET];
 		String[] columns = request.getParameterValues(PARAM_COLUMNS);
@@ -115,41 +116,49 @@ public class ApiServlet extends HttpServlet {
 			q = "";
 		else
 			queueable = Boolean.parseBoolean(q);
-		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
-		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
-			if (database != null) {
-				if (target != null) {
-					DatabaseConnection databaseConnection = null;
-					connMgr.queueDatabaseRequest(database);
-					try {
-						while (databaseConnection == null)
-							databaseConnection = connMgr.getDatabaseConnection(database);
-					} catch (Exception e) {
-						e.printStackTrace();
-					}
-					connMgr.dequeueDatabaseRequest(database);
-					if (databaseConnection != null) {
-						response.getWriter().write(databaseConnection.query(target, columns, selection).toJSONString());
-						databaseConnection.release();
-					} else if (queueable) {
-						JSONObject j = new JSONObject();
-						JSONArray errors = new JSONArray();
-						errors.add("no database connection");
-						connMgr.queueRequest(getQueuedRequest(ACTION_QUERY, database, target, columns, values, selection, queueable));
-						errors.add("queued");
-						response.setStatus(200);
-						j.put("errors", errors);
-						response.getWriter().write(j.toJSONString());
-					} else
-						response.setStatus(502);
-					connMgr.cleanDatabaseConnections(database);
-				} else
-					response.getWriter().write(connMgr.getDatabase(database).toJSONString());
-			} else
-				response.getWriter().write(connMgr.getDatabases().toJSONString());
-		} else {
+		if (request.getParameter(PARAM_TOKEN) == null)
 			response.getWriter().write("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Hydra</title></head><body><h3>Hydra API</h3>");
-			response.setStatus(401);
+		else {
+			ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+			if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
+				if (database != null) {
+					if (target != null) {
+						DatabaseConnection databaseConnection = null;
+						connMgr.queueDatabaseRequest(database);
+						try {
+							while (databaseConnection == null)
+								databaseConnection = connMgr.getDatabaseConnection(database);
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+						connMgr.dequeueDatabaseRequest(database);
+						if (databaseConnection != null) {
+							response.getWriter().write(databaseConnection.query(target, columns, selection).toJSONString());
+							databaseConnection.release();
+						} else if (queueable) {
+							JSONObject j = new JSONObject();
+							JSONArray errors = new JSONArray();
+							errors.add("no database connection");
+							connMgr.queueRequest(getQueuedRequest(ACTION_QUERY, database, target, columns, values, selection, queueable));
+							errors.add("queued");
+							response.setStatus(200);
+							j.put("errors", errors);
+							response.getWriter().write(j.toJSONString());
+						} else
+							response.setStatus(502);
+						connMgr.cleanDatabaseConnections(database);
+					} else
+						response.getWriter().write(connMgr.getDatabase(database).toJSONString());
+				} else
+					response.getWriter().write(connMgr.getDatabases().toJSONString());
+			} else {
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add("not authenticated");
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+				response.setStatus(401);
+			}
 		}
 	}
 
@@ -157,7 +166,7 @@ public class ApiServlet extends HttpServlet {
 	 * insert
 	 */
 	public void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		String[] parts = getPathParts(request.getRequestURI().substring(request.getContextPath().length()));
+		String[] parts = getPathParts(request);
 		String database = parts[DATABASE];
 		String target = parts[TARGET];
 		String[] columns = request.getParameterValues(PARAM_COLUMNS);
@@ -226,7 +235,7 @@ public class ApiServlet extends HttpServlet {
 	 * update
 	 */
 	public void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		String[] parts = getPathParts(request.getRequestURI().substring(request.getContextPath().length()));
+		String[] parts = getPathParts(request);
 		String database = parts[DATABASE];
 		String target = parts[TARGET];
 		String[] columns = request.getParameterValues(PARAM_COLUMNS);
@@ -276,7 +285,7 @@ public class ApiServlet extends HttpServlet {
 	 * delete
 	 */
 	public void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		String[] parts = getPathParts(request.getRequestURI().substring(request.getContextPath().length()));
+		String[] parts = getPathParts(request);
 		String database = parts[DATABASE];
 		String target = parts[TARGET];
 		String[] columns = request.getParameterValues(PARAM_COLUMNS);

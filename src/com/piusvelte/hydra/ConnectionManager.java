@@ -100,8 +100,8 @@ public class ConnectionManager {
 			if (properties.containsKey(sHydra)) {
 				sHydraDir = properties.getProperty(sHydra);
 				if (sHydraDir.length() > 0) {
-					if (!File.pathSeparator.equals(sHydraDir.substring(sHydraDir.length() - 1, sHydraDir.length())))
-						sHydraDir += File.pathSeparator;
+					if (!File.separator.equals(sHydraDir.substring(sHydraDir.length() - 1, sHydraDir.length())))
+						sHydraDir += File.separator;
 					sQueueFile = sHydraDir + "queue";
 					tokenFile = sHydraDir + "tokens";
 					try {
@@ -218,32 +218,32 @@ public class ConnectionManager {
 	@SuppressWarnings("unchecked")
 	JSONObject getDatabases() {
 		JSONObject response = new JSONObject();
+		JSONArray arr = new JSONArray();
 		synchronized (databaseLock) {
 			Set<String> databases = sDatabaseSettings.keySet();
-			JSONArray arr = new JSONArray();
 			Iterator<String> iter = databases.iterator();
 			while (iter.hasNext())
 				arr.add(iter.next());
-			response.put("result", arr);
 		}
+		response.put("result", arr);
 		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	JSONObject getDatabase(String database) {
 		JSONObject response = new JSONObject();
+		JSONObject props = new JSONObject();
 		synchronized (databaseLock) {
 			if (sDatabaseSettings.containsKey(database)) {
 				HashMap<String, String> databaseSettings = sDatabaseSettings.get(database);
-				JSONObject props = new JSONObject();
 				props.put(sAlias, database);
 				props.put(sDatabase, databaseSettings.get(sDatabase));
 				props.put(sHost, databaseSettings.get(sHost));
 				props.put(sPort, databaseSettings.get(sPort));
 				props.put(sType, databaseSettings.get(sType));
-				response.put("result", props);
 			}
 		}
+		response.put("result", props);
 		return response;
 	}
 
@@ -278,6 +278,14 @@ public class ConnectionManager {
 			return false;
 		else
 			return tokens.contains(token);
+	}
+	
+	//TODO
+	public String getTokens() {
+		String t = "";
+		for (String token : tokens)
+			t += "," + token;
+		return t;
 	}
 
 	static File getFile(String name) {
@@ -381,6 +389,7 @@ public class ConnectionManager {
 							fw.close();
 						} catch (IOException e) {
 							e.printStackTrace();
+							throw new Exception("error storing token");
 						}
 						unauthorizedTokens.remove(token);
 					}

@@ -161,77 +161,92 @@ public class UnidataConnection extends DatabaseConnection {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		JSONArray result = new JSONArray();
-		// build the key
-		ArrayList<String> keyNames = new ArrayList<String>();
-		ArrayList<Integer> keyLocs = new ArrayList<Integer>();
-		try {
-			UniCommand uCommand = mSession.command();
-			uCommand.setCommand(String.format(SELECTION_QUERY_FORMAT, "DICT " + object, "SELECT DICT STUDENT.TERMS WITH LOC LIKE 'FIELD(@ID,...*...'").toString());
-			UniSelectList uSelect = mSession.selectList(0);
-			uCommand.exec();
-			UniDictionary dict = mSession.openDict(object);
-			UniString recordID = null;
-			Pattern keyPattern = Pattern.compile("^FIELD\\(@ID,\"\\*\",\\d+\\)");
-			while ((recordID = uSelect.next()).length() > 0) {
-				dict.setRecordID(recordID);
-				String loc = dict.getLoc().toString();
-				if (keyPattern.matcher(loc).matches()) {
-					int keyLoc = Integer.parseInt(loc.substring(14, loc.length() - 1));
-					if (!keyLocs.contains(keyLoc)) {
-						keyLocs.add(keyLoc);
-						keyNames.add(recordID.toString());
-					}
-				}
+		// need the recordID, it may be sent as @ID, or as the Colleague I-descriptors
+		String recordID = null;
+		for (int c = 0; (c < columns.length) && (c < values.length); c++) {
+			if (("@ID").equals(columns[c])) {
+				recordID = values[c];
+				break;
 			}
-		} catch (UniSessionException e) {
-			e.printStackTrace();
-		} catch (UniCommandException e) {
-			e.printStackTrace();
-		} catch (UniFileException e) {
-			e.printStackTrace();
-		} catch (NumberFormatException e) {
-			e.printStackTrace();
-		} catch (UniSelectListException e) {
-			e.printStackTrace();
 		}
-		int s = keyNames.size();
-		if (s > 0) {
-			// check if the keys are defined
-			String[] keyParts = new String[s];
-			int partsFound = 0;
-			for (int k = 0; k < s; k++) {
-				for (int c = 0; (c < columns.length) && (c < values.length); c++) {
-					if (keyNames.get(k).equals(columns[c])) {
-						keyParts[keyLocs.get(k)] = values[c];
-						partsFound++;
-						break;
+		ArrayList<String> keyNames = new ArrayList<String>();
+		if (recordID == null) {
+			// @ID wasn't sent, look for the Colleague I-descriptors
+			ArrayList<Integer> keyLocs = new ArrayList<Integer>();
+			try {
+				UniCommand uCommand = mSession.command();
+				uCommand.setCommand(String.format(SELECTION_QUERY_FORMAT, "DICT " + object, "SELECT DICT STUDENT.TERMS WITH LOC LIKE 'FIELD(@ID,...*...'").toString());
+				UniSelectList uSelect = mSession.selectList(0);
+				uCommand.exec();
+				UniDictionary dict = mSession.openDict(object);
+				UniString fieldID = null;
+				Pattern keyPattern = Pattern.compile("^FIELD\\(@ID,\"\\*\",\\d+\\)");
+				while ((fieldID = uSelect.next()).length() > 0) {
+					dict.setRecordID(fieldID);
+					String loc = dict.getLoc().toString();
+					if (keyPattern.matcher(loc).matches()) {
+						int keyLoc = Integer.parseInt(loc.substring(14, loc.length() - 1));
+						if (!keyLocs.contains(keyLoc)) {
+							keyLocs.add(keyLoc);
+							keyNames.add(fieldID.toString());
+						}
 					}
+				}
+			} catch (UniSessionException e) {
+				e.printStackTrace();
+			} catch (UniCommandException e) {
+				e.printStackTrace();
+			} catch (UniFileException e) {
+				e.printStackTrace();
+			} catch (NumberFormatException e) {
+				e.printStackTrace();
+			} catch (UniSelectListException e) {
+				e.printStackTrace();
+			}
+			int s = keyNames.size();
+			if (s > 0) {
+				// check if the keys are defined
+				String[] keyParts = new String[s];
+				int partsFound = 0;
+				for (int k = 0; k < s; k++) {
+					for (int c = 0; (c < columns.length) && (c < values.length); c++) {
+						if (keyNames.get(k).equals(columns[c])) {
+							keyParts[keyLocs.get(k)] = values[c];
+							partsFound++;
+							break;
+						}
+					}
+				}
+				if (partsFound < s)
+					errors.add("key not defined");
+				else {
+					recordID = "";
+					for (int k = 0; k < s; k++)
+						recordID += keyParts[k];
 				}
 			}
-			if (partsFound < s)
-				errors.add("key not defined");
-			else {
-				String key = "";
-				for (int k = 0; k < s; k++)
-					key += keyParts[k];
-				UniFile uFile = null;
+		}
+		if (recordID != null) {
+			UniFile uFile = null;
+			try {
+				uFile = mSession.openFile(object);
+			} catch (UniSessionException e) {
+				e.printStackTrace();
+				errors.add("error opening file: " + object + ": " + e.getMessage());
+			}
+			if (uFile != null) {
+				boolean fieldsWritten = false;
 				try {
-					uFile = mSession.openFile(object);
-				} catch (UniSessionException e) {
+					uFile.setRecordID(recordID);
+				} catch (UniFileException e) {
 					e.printStackTrace();
-					errors.add("error opening file: " + object + ": " + e.getMessage());
+					fieldsWritten = false;
 				}
-				if (uFile != null) {
-					boolean fieldsWritten = false;
-					try {
-						uFile.setRecordID(key);
-					} catch (UniFileException e) {
-						e.printStackTrace();
-						fieldsWritten = false;
-					}
-					fieldsWritten = true;
-					for (int c = 0, cl = columns.length; c < cl; c++) {
-						if (c < values.length) {
+				fieldsWritten = true;
+				for (int c = 0, cl = columns.length; c < cl; c++) {
+					if (c < values.length) {
+						// don't try to write the Colleague I-descriptors
+						if (!keyNames.contains(columns[c])) {
 							try {
 								uFile.writeNamedField(columns[c], values[c]);
 							} catch (UniFileException e) {
@@ -241,17 +256,19 @@ public class UnidataConnection extends DatabaseConnection {
 							}
 						}
 					}
-					if (fieldsWritten) {
-						try {
-							uFile.write();
-						} catch (UniFileException e) {
-							e.printStackTrace();
-							errors.add("error writing file: " + e.getMessage());
-						}
-						response.put("result", result);
+				}
+				if (fieldsWritten) {
+					try {
+						uFile.write();
+					} catch (UniFileException e) {
+						e.printStackTrace();
+						errors.add("error writing file: " + e.getMessage());
 					}
+					response.put("result", result);
 				}
 			}
+			else
+				errors.add("key not defined");
 		} else
 			errors.add("key not found");
 		response.put("errors", errors);
