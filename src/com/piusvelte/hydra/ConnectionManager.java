@@ -21,10 +21,11 @@ package com.piusvelte.hydra;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.FileWriter;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -38,11 +39,15 @@ import java.util.Properties;
 import java.util.Set;
 
 import javax.servlet.ServletContext;
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
+import javax.servlet.annotation.WebListener;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-public class ConnectionManager {
+@WebListener
+public class ConnectionManager implements ServletContextListener {
 
 	private static final String sPassphrase = "passphrase";
 	private static final String sHydra = "hydra";
@@ -71,17 +76,17 @@ public class ConnectionManager {
 	private HashMap<String, Integer> queuedDatabaseRequests = new HashMap<String, Integer>();
 	private String sHydraDir = null;
 	private String sQueueFile = null;
-	private String tokenFile = null;
-	private int[] sQueueLock = new int[0];
-	private String sHydraProperties = "/WEB-INF/hydra.properties";
 	private QueueThread sQueueThread = null;
+	private int[] sQueueLock = new int[0];
+	private String tokenFile = null;
+	private String sHydraProperties = "/WEB-INF/hydra.properties";
 	private int mQueueRetryInterval;
 	private int[] tokenLock = new int[0];
 	private ArrayList<String> tokens = new ArrayList<String>();
 	private HashMap<String, String> unauthorizedTokens = new HashMap<String, String>();
 
 	private static ConnectionManager hydraService = null;
-
+	
 	private ConnectionManager(ServletContext ctx) {
 
 		mQueueRetryInterval = QueueThread.DEFAULT_QUEUERETRYINTERVAL;
@@ -131,16 +136,9 @@ public class ConnectionManager {
 	}
 
 	public static ConnectionManager getService(ServletContext ctx) {
-		if (hydraService == null) {
+		if (hydraService == null)
 			hydraService = new ConnectionManager(ctx);
-			hydraService.startQueueThread();
-		}
 		return hydraService;
-	}
-
-	void shutdown() {
-		if (sQueueThread != null)
-			stopQueueThread();
 	}
 
 	DatabaseConnection getDatabaseConnection(String database) throws Exception {
@@ -280,57 +278,22 @@ public class ConnectionManager {
 			return tokens.contains(token);
 	}
 
-	static File getFile(String name) {
-		File f = new File(name);
-		if (!f.exists()) {
-			try {
-				if (!f.createNewFile())
-					f = null;
-			} catch (IOException e) {
-				f = null;
-				e.printStackTrace();
-			}
-		}
-		return f;
-	}
-
 	void loadTokens() throws Exception {
 		if (tokenFile != null) {
 			synchronized (tokenLock) {
-				File f = getFile(tokenFile);
-				if (f != null) {
-					FileReader fr = null;
-					try {
-						fr = new FileReader(f);
-					} catch (FileNotFoundException e) {
-						e.printStackTrace();
-						throw new Exception("error loading tokens file");
+				String token = null;
+				BufferedReader br;
+				try {
+					br = new BufferedReader(new InputStreamReader(new FileInputStream(tokenFile)));
+					br.readLine();
+					while ((token = br.readLine()) != null) {
+						tokens.add(getHash64(token + passphrase));
 					}
-					BufferedReader br = new BufferedReader(fr);
-					String r = null;
-					try {
-						r = br.readLine();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					while (r != null) {
-						tokens.add(getHash64(r + passphrase));
-						try {
-							r = br.readLine();
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-					}
-					try {
-						br.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					try {
-						fr.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
+					br.close();
+				} catch (FileNotFoundException e) {
+					e.printStackTrace();
+				} catch (IOException e) {
+					e.printStackTrace();
 				}
 			}
 		}
@@ -365,26 +328,16 @@ public class ConnectionManager {
 		if (tokenFile != null) {
 			synchronized (tokenLock) {
 				if (unauthorizedTokens.containsKey(token)) {
-					File f = getFile(tokenFile);
-					if (f != null) {
-						FileWriter fw = null;
-						try {
-							fw = new FileWriter(f, true);
-						} catch (IOException e) {
-							e.printStackTrace();
-							throw new Exception("error storing token");
-						}
-						PrintWriter pw = new PrintWriter(fw);
+					PrintWriter pw;
+					try {
+						pw = new PrintWriter(new FileOutputStream(tokenFile, true));
 						pw.println(unauthorizedTokens.get(token));
 						pw.close();
-						try {
-							fw.close();
-						} catch (IOException e) {
-							e.printStackTrace();
-							throw new Exception("error storing token");
-						}
-						unauthorizedTokens.remove(token);
+					} catch (FileNotFoundException e) {
+						e.printStackTrace();
+						throw new Exception("error storing token");
 					}
+					unauthorizedTokens.remove(token);
 				}
 			}
 		} else
@@ -395,26 +348,14 @@ public class ConnectionManager {
 		boolean queued = false;
 		if (sQueueFile != null) {
 			synchronized (sQueueLock) {
-				File queueFile = getFile(sQueueFile);
-				if (queueFile != null) {
-					FileWriter fw = null;
-					try {
-						fw = new FileWriter(queueFile, true);
-					} catch (IOException e) {
-						fw = null;
-						e.printStackTrace();
-					}
-					if (fw != null) {
-						PrintWriter pw = new PrintWriter(fw);
-						pw.println(request);
-						pw.close();
-						queued = true;
-						try {
-							fw.close();
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-					}
+				PrintWriter pw;
+				try {
+					pw = new PrintWriter(new FileOutputStream(sQueueFile, true));
+					pw.println(request);
+					pw.close();
+					queued = true;
+				} catch (FileNotFoundException e) {
+					e.printStackTrace();
 				}
 			}
 			if (queued)
@@ -424,107 +365,41 @@ public class ConnectionManager {
 	}
 
 	String dequeueRequest() {
+		String request = null;
 		synchronized (sQueueLock) {
-			File queueFile = getFile(sQueueFile);
-			if (queueFile != null) {
-				FileReader fr = null;
-				try {
-					fr = new FileReader(queueFile);
-				} catch (FileNotFoundException e) {
-					e.printStackTrace();
-				}
-				if (fr != null) {
-					BufferedReader br = new BufferedReader(fr);
-					String request = null;
-					try {
-						request = br.readLine();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					try {
-						br.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					try {
-						fr.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					return request;
-				} else
-					return null;
-			} else
-				return null;
+			BufferedReader br;
+			try {
+				br = new BufferedReader(new InputStreamReader(new FileInputStream(sQueueFile)));
+				request = br.readLine();
+				br.close();
+			} catch (FileNotFoundException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			return request;
 		}
 	}
 
 	void requeueRequest(String request) {
 		ArrayList<String> requests = new ArrayList<String>();
 		synchronized (sQueueLock) {
-			File queueFile = getFile(sQueueFile);
-			if (queueFile != null) {
-				FileReader fr = null;
-				try {
-					fr = new FileReader(queueFile);
-				} catch (FileNotFoundException e) {
-					e.printStackTrace();
+			BufferedReader br;
+			try {
+				br = new BufferedReader(new InputStreamReader(new FileInputStream(sQueueFile)));
+				br.readLine();
+				while ((request = br.readLine()) != null) {
+					requests.add(request);
 				}
-				if (fr != null) {
-					BufferedReader br = new BufferedReader(fr);
-					String r = null;
-					try {
-						// skip the first line as it's been processed
-						br.readLine();
-						r = br.readLine();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					while (r != null) {
-						requests.add(r);
-						try {
-							r = br.readLine();
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-					}
-					if (request != null)
-						requests.add(request);
-					if (requests.isEmpty())
-						queueFile.delete();
-					else {
-						FileWriter fw = null;
-						try {
-							fw = new FileWriter(queueFile);
-						} catch (IOException e) {
-							fw = null;
-							e.printStackTrace();
-						}
-						if (fw != null) {
-							PrintWriter pw = new PrintWriter(fw);
-							for (String s : requests)
-								pw.println(s);
-							pw.close();
-							try {
-								fw.close();
-							} catch (IOException e) {
-								e.printStackTrace();
-							}
-						}
-					}
-					try {
-						br.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-					try {
-						fr.close();
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
+				br.close();
+			} catch (FileNotFoundException e) {
+				e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
 			}
 		}
+		for (String r : requests)
+			queueRequest(r);
 	}
 
 	void startQueueThread() {
@@ -547,5 +422,17 @@ public class ConnectionManager {
 			} else
 				return false;
 		}
+	}
+
+	@Override
+	public void contextDestroyed(ServletContextEvent event) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void contextInitialized(ServletContextEvent event) {
+		ConnectionManager connMgr = ConnectionManager.getService(event.getServletContext());
+		connMgr.startQueueThread();
 	}
 }
