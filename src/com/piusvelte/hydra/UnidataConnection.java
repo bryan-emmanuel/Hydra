@@ -63,20 +63,22 @@ public class UnidataConnection extends DatabaseConnection {
 			mSession.setPassword(mPassword);
 			mSession.setConnectionString("udcs");
 			mSession.connect();
-			// need to initialize MIO
-			String hydraInitMio = "HYDRA.INIT.MIO";
-			UniFile uFile = mSession.open("BP");
-			String code = "X.DASU = SETENV('DASU','" + mDASU + "')";
-			code += UniObjectsTokens.FM_CHAR + "X.DASP = SETENV('DASP','" + mDASP + "')";
-			uFile.write(hydraInitMio, code);
-			UniCommand uCommand = mSession.command("BASIC BP " + hydraInitMio);
-			uCommand.exec();
-			uCommand.setCommand("CATALOG BP " + hydraInitMio + " DIRECT FORCE");
-			uCommand.exec();
-			uCommand.setCommand(hydraInitMio);
-			uCommand.exec();
-			uCommand.setCommand("SQLENVINIT DMI:" + mSQLENVINIT);
-			uCommand.exec();
+			if ((mDASU != null) && (mDASP != null)) {
+				// need to initialize MIO
+				String hydraInitMio = "HYDRA.INIT.MIO";
+				UniFile uFile = mSession.open("BP");
+				String code = "X.DASU = SETENV('DASU','" + mDASU + "')";
+				code += UniObjectsTokens.FM_CHAR + "X.DASP = SETENV('DASP','" + mDASP + "')";
+				uFile.write(hydraInitMio, code);
+				UniCommand uCommand = mSession.command("BASIC BP " + hydraInitMio);
+				uCommand.exec();
+				uCommand.setCommand("CATALOG BP " + hydraInitMio + " DIRECT FORCE");
+				uCommand.exec();
+				uCommand.setCommand(hydraInitMio);
+				uCommand.exec();
+				uCommand.setCommand("SQLENVINIT DMI:" + mSQLENVINIT);
+				uCommand.exec();
+			}
 		}
 		return mLock;
 	}

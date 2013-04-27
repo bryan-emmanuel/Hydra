@@ -19,15 +19,13 @@
  */
 package com.piusvelte.hydra;
 
-import static com.piusvelte.hydra.ClientThread.ACTION_DELETE;
-import static com.piusvelte.hydra.ClientThread.ACTION_EXECUTE;
-import static com.piusvelte.hydra.ClientThread.ACTION_INSERT;
-import static com.piusvelte.hydra.ClientThread.ACTION_QUERY;
-import static com.piusvelte.hydra.ClientThread.ACTION_SUBROUTINE;
-import static com.piusvelte.hydra.ClientThread.ACTION_UPDATE;
+import static com.piusvelte.hydra.ApiServlet.ACTION_DELETE;
+import static com.piusvelte.hydra.ApiServlet.ACTION_EXECUTE;
+import static com.piusvelte.hydra.ApiServlet.ACTION_INSERT;
+import static com.piusvelte.hydra.ApiServlet.ACTION_QUERY;
+import static com.piusvelte.hydra.ApiServlet.ACTION_SUBROUTINE;
+import static com.piusvelte.hydra.ApiServlet.ACTION_UPDATE;
 
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 public class QueueThread extends Thread {
@@ -52,7 +50,7 @@ public class QueueThread extends Thread {
 				// process the request
 				HydraRequest hydraRequest = null;
 				try {
-					hydraRequest = new HydraRequest((JSONObject) (new JSONParser()).parse(request));
+					hydraRequest = new HydraRequest(request);
 				} catch (ParseException e) {
 					hydraRequest = null;
 					e.printStackTrace();
@@ -68,8 +66,8 @@ public class QueueThread extends Thread {
 						// still not available, re-queue
 						if (hydraRequest.queueable) {
 							if (firstRequeuedRequest == null)
-								firstRequeuedRequest = hydraRequest.getRequest();
-							hydraService.requeueRequest(hydraRequest.getRequest());
+								firstRequeuedRequest = hydraRequest.toJSONString();
+							hydraService.requeueRequest(hydraRequest.toJSONString());
 						}
 					} else {
 						if (ACTION_EXECUTE.equals(hydraRequest.action) && (hydraRequest.target.length() > 0))

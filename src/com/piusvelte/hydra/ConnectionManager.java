@@ -39,15 +39,11 @@ import java.util.Properties;
 import java.util.Set;
 
 import javax.servlet.ServletContext;
-import javax.servlet.ServletContextEvent;
-import javax.servlet.ServletContextListener;
-import javax.servlet.annotation.WebListener;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-@WebListener
-public class ConnectionManager implements ServletContextListener {
+public class ConnectionManager {
 
 	private static final String sPassphrase = "passphrase";
 	private static final String sHydra = "hydra";
@@ -135,7 +131,7 @@ public class ConnectionManager implements ServletContextListener {
 		}
 	}
 
-	public static ConnectionManager getService(ServletContext ctx) {
+	public static ConnectionManager getInstance(ServletContext ctx) {
 		if (hydraService == null)
 			hydraService = new ConnectionManager(ctx);
 		return hydraService;
@@ -422,17 +418,5 @@ public class ConnectionManager implements ServletContextListener {
 			} else
 				return false;
 		}
-	}
-
-	@Override
-	public void contextDestroyed(ServletContextEvent event) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void contextInitialized(ServletContextEvent event) {
-		ConnectionManager connMgr = ConnectionManager.getService(event.getServletContext());
-		connMgr.startQueueThread();
 	}
 }

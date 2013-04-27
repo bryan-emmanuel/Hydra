@@ -36,7 +36,7 @@ public class AuthServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
 
 	public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+		ConnectionManager connMgr = ConnectionManager.getInstance(getServletContext());
 		JSONObject j = new JSONObject();
 		String token = request.getParameter("token");
 		if ((token != null) && (token.length() > 0)) {

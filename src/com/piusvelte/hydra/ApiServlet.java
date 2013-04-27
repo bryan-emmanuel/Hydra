@@ -20,7 +20,6 @@
 package com.piusvelte.hydra;
 
 import java.io.IOException;
-import java.net.URLDecoder;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -65,90 +64,56 @@ public class ApiServlet extends HttpServlet {
 	 *  DELETE - delete
 	 */
 
-	private String[] getPathParts(HttpServletRequest request) {
-		String path = request.getRequestURI().substring(request.getContextPath().length() + 4);
-		String[] parts = new String[]{null, null};
-		if (path.length() > 0) {
-			if (path.substring(0, 1).equals("/"))
-				path = path.substring(1);
-			if (path.length() > 0) {
-				String[] paths = path.split("/");
-				if (paths[DATABASE].length() > 0)
-					parts[DATABASE] = paths[DATABASE];
-				if ((paths.length > TARGET) && (paths[TARGET].length() > 0))
-					parts[TARGET] = paths[TARGET];
-			}
-		}
-		return parts;
-	}
-
-	private String getQueuedRequest(String action, String database, String target, String[] columns, String[] values, String selection, boolean queueable) {
-		JSONObject request = new JSONObject();
-		request.put(PARAM_ACTION, action);
-		request.put(PARAM_DATABASE, database);
-		request.put(PARAM_TARGET, target);
-		JSONArray colArr = new JSONArray();
-		for (String s : columns)
-			colArr.add(s);
-		request.put(PARAM_COLUMNS, colArr);
-		JSONArray valArr = new JSONArray();
-		for (String s : values)
-			valArr.add(s);
-		request.put(PARAM_VALUES, valArr);
-		request.put(PARAM_SELECTION, selection);
-		request.put(PARAM_QUEUEABLE, Boolean.toString(queueable));
-		return request.toJSONString();
-	}
-
 	/*
 	 * query
 	 */
 	public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		String[] parts = getPathParts(request);
-		String database = parts[DATABASE];
-		String target = parts[TARGET];
-		String[] columns = request.getParameterValues(PARAM_COLUMNS);
-		String[] values = request.getParameterValues(PARAM_VALUES);
-		String selection = request.getParameter(PARAM_SELECTION);
-		String q = request.getParameter(PARAM_QUEUEABLE);
-		boolean queueable = false;
-		if (q == null)
-			q = "";
-		else
-			queueable = Boolean.parseBoolean(q);
 		if (request.getParameter(PARAM_TOKEN) == null)
 			response.getWriter().write("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Hydra</title></head><body><h3>Hydra API</h3>");
 		else {
-			ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+			HydraRequest hydraRequest;
+			try {
+				hydraRequest = HydraRequest.fromGet(request);
+			} catch (Exception e) {
+				System.out.println("crap: " + e.getMessage());
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add(e.getMessage());
+				response.setStatus(402);
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+				return;
+			}
+			ConnectionManager connMgr = ConnectionManager.getInstance(getServletContext());
 			if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
-				if (database != null) {
-					if (target != null) {
+				if (hydraRequest.hasDatabase()) {
+					if (hydraRequest.hasTarget()) {
 						DatabaseConnection databaseConnection = null;
-						connMgr.queueDatabaseRequest(database);
+						connMgr.queueDatabaseRequest(hydraRequest.database);
 						try {
 							while (databaseConnection == null)
-								databaseConnection = connMgr.getDatabaseConnection(database);
+								databaseConnection = connMgr.getDatabaseConnection(hydraRequest.database);
 						} catch (Exception e) {
 							e.printStackTrace();
 						}
-						connMgr.dequeueDatabaseRequest(database);
+						connMgr.dequeueDatabaseRequest(hydraRequest.database);
 						if (databaseConnection != null) {
-							response.getWriter().write(databaseConnection.query(target, columns, selection).toJSONString());
+							response.getWriter().write(databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection).toJSONString());
 							databaseConnection.release();
-						} else if (queueable) {
+						} else if (hydraRequest.queueable) {
 							JSONObject j = new JSONObject();
 							JSONArray errors = new JSONArray();
 							errors.add("no database connection");
-							connMgr.queueRequest(getQueuedRequest(ACTION_QUERY, database, target, columns, values, selection, queueable));
+							connMgr.queueRequest(hydraRequest.toJSONString());
 							errors.add("queued");
 							response.setStatus(200);
 							j.put("errors", errors);
 							response.getWriter().write(j.toJSONString());
 						} else
 							response.setStatus(502);
-						connMgr.cleanDatabaseConnections(database);
+						connMgr.cleanDatabaseConnections(hydraRequest.database);
 					} else
-						response.getWriter().write(connMgr.getDatabase(database).toJSONString());
+						response.getWriter().write(connMgr.getDatabase(hydraRequest.database).toJSONString());
 				} else
 					response.getWriter().write(connMgr.getDatabases().toJSONString());
 			} else {
@@ -166,44 +131,38 @@ public class ApiServlet extends HttpServlet {
 	 * insert
 	 */
 	public void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		String[] parts = getPathParts(request);
-		String database = parts[DATABASE];
-		String target = parts[TARGET];
-		String[] columns = request.getParameterValues(PARAM_COLUMNS);
-		String[] values = request.getParameterValues(PARAM_VALUES);
-		String selection = request.getParameter(PARAM_SELECTION);
-		String[] arguments = request.getParameterValues(PARAM_ARGUMENTS);
-		String command = request.getParameter(PARAM_ARGUMENTS);
-		String q = request.getParameter(PARAM_QUEUEABLE);
-		boolean queueable = false;
-		if (q == null)
-			q = "";
-		else
-			queueable = Boolean.parseBoolean(q);
-		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+		ConnectionManager connMgr = ConnectionManager.getInstance(getServletContext());
 		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
-			if (database != null) {
-				String action = null;
+			HydraRequest hydraRequest;
+			try {
+				hydraRequest = HydraRequest.fromPost(request);
+			} catch (Exception e) {
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add(e.getMessage());
+				response.setStatus(402);
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+				return;
+			}
+			if (hydraRequest.database != null) {
 				DatabaseConnection databaseConnection = null;
-				connMgr.queueDatabaseRequest(database);
+				connMgr.queueDatabaseRequest(hydraRequest.database);
 				try {
 					while (databaseConnection == null)
-						databaseConnection = connMgr.getDatabaseConnection(database);
+						databaseConnection = connMgr.getDatabaseConnection(hydraRequest.database);
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-				connMgr.dequeueDatabaseRequest(database);
+				connMgr.dequeueDatabaseRequest(hydraRequest.database);
 				if (databaseConnection != null) {
-					if (columns.length > 0) {
-						action = ACTION_INSERT;
-						response.getWriter().write(databaseConnection.insert(target, columns, values).toJSONString());
-					} else if (arguments.length > 0) {
-						action = ACTION_SUBROUTINE;
-						response.getWriter().write(databaseConnection.subroutine(target, arguments).toJSONString());
-					} else if (command != null) {
-						action = ACTION_EXECUTE;
-						response.getWriter().write(databaseConnection.execute(command).toJSONString());
-					} else {
+					if (hydraRequest.isInsert())
+						response.getWriter().write(databaseConnection.insert(hydraRequest.target, hydraRequest.columns, hydraRequest.values).toJSONString());
+					else if (hydraRequest.isSubroutine())
+						response.getWriter().write(databaseConnection.subroutine(hydraRequest.target, hydraRequest.arguments).toJSONString());
+					else if (hydraRequest.isExecute())
+						response.getWriter().write(databaseConnection.execute(hydraRequest.command).toJSONString());
+					else {
 						JSONObject j = new JSONObject();
 						JSONArray errors = new JSONArray();
 						errors.add("invalid request");
@@ -212,18 +171,18 @@ public class ApiServlet extends HttpServlet {
 						response.getWriter().write(j.toJSONString());
 					}
 					databaseConnection.release();
-				} else if (queueable) {
+				} else if (hydraRequest.queueable) {
 					JSONObject j = new JSONObject();
 					JSONArray errors = new JSONArray();
 					errors.add("no database connection");
-					connMgr.queueRequest(getQueuedRequest(action, database, target, columns, values, selection, queueable));
+					connMgr.queueRequest(hydraRequest.toJSONString());
 					errors.add("queued");
 					response.setStatus(200);
 					j.put("errors", errors);
 					response.getWriter().write(j.toJSONString());
 				} else
 					response.setStatus(502);
-				connMgr.cleanDatabaseConnections(database);
+				connMgr.cleanDatabaseConnections(hydraRequest.database);
 			} else
 				response.setStatus(402);
 		} else {
@@ -235,47 +194,44 @@ public class ApiServlet extends HttpServlet {
 	 * update
 	 */
 	public void doPut(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		String[] parts = getPathParts(request);
-		String database = parts[DATABASE];
-		String target = parts[TARGET];
-		String[] columns = request.getParameterValues(PARAM_COLUMNS);
-		String[] values = request.getParameterValues(PARAM_VALUES);
-		String selection = request.getParameter(PARAM_SELECTION);
-		String q = request.getParameter(PARAM_QUEUEABLE);
-		boolean queueable = false;
-		if (q == null)
-			q = "";
-		else
-			queueable = Boolean.parseBoolean(q);
-		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+		ConnectionManager connMgr = ConnectionManager.getInstance(getServletContext());
 		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
-			if ((database != null) && (target != null)) {
-				DatabaseConnection databaseConnection = null;
-				connMgr.queueDatabaseRequest(database);
-				try {
-					while (databaseConnection == null)
-						databaseConnection = connMgr.getDatabaseConnection(database);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				connMgr.dequeueDatabaseRequest(database);
-				if (databaseConnection != null) {
-					response.getWriter().write(databaseConnection.query(target, columns, selection).toJSONString());
-					databaseConnection.release();
-				} else if (queueable) {
-					JSONObject j = new JSONObject();
-					JSONArray errors = new JSONArray();
-					errors.add("no database connection");
-					connMgr.queueRequest(getQueuedRequest(ACTION_UPDATE, database, target, columns, values, selection, queueable));
-					errors.add("queued");
-					response.setStatus(200);
-					j.put("errors", errors);
-					response.getWriter().write(j.toJSONString());
-				} else
-					response.setStatus(502);
-				connMgr.cleanDatabaseConnections(database);
-			} else
+			HydraRequest hydraRequest;
+			try {
+				hydraRequest = HydraRequest.fromPut(request);
+			} catch (Exception e) {
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add(e.getMessage());
 				response.setStatus(402);
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+				return;
+			}
+			DatabaseConnection databaseConnection = null;
+			connMgr.queueDatabaseRequest(hydraRequest.database);
+			try {
+				while (databaseConnection == null)
+					databaseConnection = connMgr.getDatabaseConnection(hydraRequest.database);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			connMgr.dequeueDatabaseRequest(hydraRequest.database);
+			if (databaseConnection != null) {
+				response.getWriter().write(databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection).toJSONString());
+				databaseConnection.release();
+			} else if (hydraRequest.queueable) {
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add("no database connection");
+				connMgr.queueRequest(hydraRequest.toJSONString());
+				errors.add("queued");
+				response.setStatus(200);
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+			} else
+				response.setStatus(502);
+			connMgr.cleanDatabaseConnections(hydraRequest.database);
 		} else {
 			response.setStatus(401);
 		}
@@ -285,47 +241,44 @@ public class ApiServlet extends HttpServlet {
 	 * delete
 	 */
 	public void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		String[] parts = getPathParts(request);
-		String database = parts[DATABASE];
-		String target = parts[TARGET];
-		String[] columns = request.getParameterValues(PARAM_COLUMNS);
-		String[] values = request.getParameterValues(PARAM_VALUES);
-		String selection = request.getParameter(PARAM_SELECTION);
-		String q = request.getParameter(PARAM_QUEUEABLE);
-		boolean queueable = false;
-		if (q == null)
-			q = "";
-		else
-			queueable = Boolean.parseBoolean(q);
-		ConnectionManager connMgr = ConnectionManager.getService(getServletContext());
+		ConnectionManager connMgr = ConnectionManager.getInstance(getServletContext());
 		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
-			if ((database != null) && (target != null)) {
-				DatabaseConnection databaseConnection = null;
-				connMgr.queueDatabaseRequest(database);
-				try {
-					while (databaseConnection == null)
-						databaseConnection = connMgr.getDatabaseConnection(database);
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				connMgr.dequeueDatabaseRequest(database);
-				if (databaseConnection != null) {
-					response.getWriter().write(databaseConnection.query(target, columns, selection).toJSONString());
-					databaseConnection.release();
-				} else if (queueable) {
-					JSONObject j = new JSONObject();
-					JSONArray errors = new JSONArray();
-					errors.add("no database connection");
-					connMgr.queueRequest(getQueuedRequest(ACTION_DELETE, database, target, columns, values, selection, queueable));
-					errors.add("queued");
-					response.setStatus(200);
-					j.put("errors", errors);
-					response.getWriter().write(j.toJSONString());
-				} else
-					response.setStatus(502);
-				connMgr.cleanDatabaseConnections(database);
-			} else
+			HydraRequest hydraRequest;
+			try {
+				hydraRequest = HydraRequest.fromPut(request);
+			} catch (Exception e) {
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add(e.getMessage());
 				response.setStatus(402);
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+				return;
+			}
+			DatabaseConnection databaseConnection = null;
+			connMgr.queueDatabaseRequest(hydraRequest.database);
+			try {
+				while (databaseConnection == null)
+					databaseConnection = connMgr.getDatabaseConnection(hydraRequest.database);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			connMgr.dequeueDatabaseRequest(hydraRequest.database);
+			if (databaseConnection != null) {
+				response.getWriter().write(databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection).toJSONString());
+				databaseConnection.release();
+			} else if (hydraRequest.queueable) {
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add("no database connection");
+				connMgr.queueRequest(hydraRequest.toJSONString());
+				errors.add("queued");
+				response.setStatus(200);
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+			} else
+				response.setStatus(502);
+			connMgr.cleanDatabaseConnections(hydraRequest.database);
 		} else {
 			response.setStatus(401);
 		}
