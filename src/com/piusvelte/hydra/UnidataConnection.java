@@ -126,14 +126,29 @@ public class UnidataConnection extends DatabaseConnection {
 			UniSelectList uSelect = mSession.selectList(0);
 			uCommand.exec();
 			uFile = mSession.openFile(object);
-			JSONObject columnJObj = new JSONObject();
 			UniString recordID = null;
 			while ((recordID = uSelect.next()).length() > 0) {
 				uFile.setRecordID(recordID);
-				columnJObj.clear();
-				for (String column : columns)
-					columnJObj.put(column, parseMultiValues(uFile.readNamedField(column).toString()));
-				result.add(columnJObj);
+				// flatten out multi-values
+				int maxSize = 1;
+				ArrayList<String[]> colArr = new ArrayList<String[]>();
+				for (String column : columns) {
+					String[] mvArr = uFile.readNamedField(column).toString().split(UniTokens.AT_VM);
+					if (mvArr.length > maxSize)
+						maxSize = mvArr.length;
+					colArr.add(mvArr);
+				}
+				for (int row = 0; row < maxSize; row++) {
+					JSONObject columnJObj = new JSONObject();
+					for (int col = 0; col < columns.length; col++) {
+						String[] mvArr = colArr.get(col);
+						if (row < mvArr.length)
+							columnJObj.put(columns[col], mvArr[row]);
+						else
+							columnJObj.put(columns[col], "");
+					}
+					result.add(columnJObj);
+				}
 			}
 			response.put("result", result);
 		} catch (UniSessionException e) {
