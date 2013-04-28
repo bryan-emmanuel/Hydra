@@ -76,6 +76,21 @@ public class OracleConnection extends DatabaseConnection {
 		}
 	}
 	
+	private JSONArray getResult(ResultSet rs) throws SQLException {
+		JSONArray rows = new JSONArray();
+		ResultSetMetaData rsmd = rs.getMetaData();
+		String[] columnsArr = new String[rsmd.getColumnCount()];
+		for (int c = 0, l = columnsArr.length; c < l; c++)
+			columnsArr[c] = rsmd.getColumnName(c);
+		while (rs.next()) {
+			JSONArray rowData = new JSONArray();
+			for (String column : columnsArr)
+				rowData.add((String) rs.getObject(column));
+			rows.add(rowData);
+		}
+		return rows;
+	}
+	
 	@SuppressWarnings("unchecked")
 	@Override
 	public JSONObject execute(String statement) {
@@ -86,18 +101,7 @@ public class OracleConnection extends DatabaseConnection {
 		try {
 			s = mConnection.createStatement();
 			rs = s.executeQuery(statement);
-			JSONArray rows = new JSONArray();
-			ResultSetMetaData rsmd = rs.getMetaData();
-			String[] columnsArr = new String[rsmd.getColumnCount()];
-			for (int c = 0, l = columnsArr.length; c < l; c++)
-				columnsArr[c] = rsmd.getColumnName(c);
-			while (rs.next()) {
-				JSONArray rowData = new JSONArray();
-				for (String column : columnsArr)
-					rowData.add((String) rs.getObject(column));
-				rows.add(rowData);
-			}
-			response.put("result", rows);
+			response.put("result", getResult(rs));
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
 		} finally {
@@ -140,14 +144,7 @@ public class OracleConnection extends DatabaseConnection {
 				rs = s.executeQuery(String.format(SELECTION_QUERY_FORMAT, columnsStr, object, selection).toString());
 			else
 				rs = s.executeQuery(String.format(SIMPLE_QUERY_FORMAT, columnsStr, object).toString());
-			JSONArray rows = new JSONArray();
-			while (rs.next()) {
-				JSONArray rowData = new JSONArray();
-				for (String column : columns)
-					rowData.add((String) rs.getObject(column));
-				rows.add(rowData);
-			}
-			response.put("result", rows);
+			response.put("result", getResult(rs));
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
 		} finally {
@@ -194,19 +191,7 @@ public class OracleConnection extends DatabaseConnection {
 			String valuesStr = sb.toString();
 			s = mConnection.createStatement();
 			rs = s.executeQuery(String.format(INSERT_QUERY, object, columnsStr, valuesStr).toString());
-			JSONArray result = new JSONArray();
-			ResultSetMetaData rsmd = rs.getMetaData();
-			String[] columnsArr = new String[rsmd.getColumnCount()];
-			for (int c = 0, l = columnsArr.length; c < l; c++)
-				columnsArr[c] = rsmd.getColumnName(c);
-			while (rs.next()) {
-				for (String column : columnsArr) {
-					JSONObject col = new JSONObject();
-					col.put(column, (String) rs.getObject(column));
-					result.add(col);
-				}
-			}
-			response.put("result", result);
+			response.put("result", getResult(rs));
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
 		} finally {
@@ -247,19 +232,7 @@ public class OracleConnection extends DatabaseConnection {
 			}
 			s = mConnection.createStatement();
 			rs = s.executeQuery(String.format(UPDATE_QUERY, object, sb.toString(), selection).toString());
-			JSONArray result = new JSONArray();
-			ResultSetMetaData rsmd = rs.getMetaData();
-			String[] columnsArr = new String[rsmd.getColumnCount()];
-			for (int c = 0, l = columnsArr.length; c < l; c++)
-				columnsArr[c] = rsmd.getColumnName(c);
-			while (rs.next()) {
-				for (String column : columnsArr) {
-					JSONObject col = new JSONObject();
-					col.put(column, (String) rs.getObject(column));
-					result.add(col);
-				}
-			}
-			response.put("result", result);
+			response.put("result", getResult(rs));
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
 		} finally {
@@ -292,19 +265,7 @@ public class OracleConnection extends DatabaseConnection {
 		try {
 			s = mConnection.createStatement();
 			rs = s.executeQuery(String.format(DELETE_QUERY, object, selection).toString());
-			JSONArray result = new JSONArray();
-			ResultSetMetaData rsmd = rs.getMetaData();
-			String[] columnsArr = new String[rsmd.getColumnCount()];
-			for (int c = 0, l = columnsArr.length; c < l; c++)
-				columnsArr[c] = rsmd.getColumnName(c);
-			while (rs.next()) {
-				for (String column : columnsArr) {
-					JSONObject col = new JSONObject();
-					col.put(column, (String) rs.getObject(column));
-					result.add(col);
-				}
-			}
-			response.put("result", result);
+			response.put("result", getResult(rs));
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
 		} finally {

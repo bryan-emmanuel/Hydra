@@ -186,7 +186,6 @@ public class UnidataConnection extends DatabaseConnection {
 	public JSONObject insert(String object, String[] columns, String[] values) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
-		JSONArray result = new JSONArray();
 		// need the recordID, it may be sent as @ID, or as the Colleague I-descriptors
 		String recordID = null;
 		for (int c = 0; (c < columns.length) && (c < values.length); c++) {
@@ -290,7 +289,10 @@ public class UnidataConnection extends DatabaseConnection {
 						e.printStackTrace();
 						errors.add("error writing file: " + e.getMessage());
 					}
-					response.put("result", result);
+					JSONArray rows = new JSONArray();
+					JSONArray rowData = new JSONArray();
+					rows.add(rowData);
+					response.put("result", rows);
 				}
 			}
 			else
@@ -309,7 +311,6 @@ public class UnidataConnection extends DatabaseConnection {
 		UniFile uFile = null;
 
 		try {
-			JSONArray result = new JSONArray();
 			UniCommand uCommand = mSession.command();
 			if (selection == null)
 				uCommand.setCommand(String.format(SIMPLE_QUERY_FORMAT, object).toString());
@@ -327,7 +328,10 @@ public class UnidataConnection extends DatabaseConnection {
 				}
 				uFile.write();
 			}
-			response.put("result", result);
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
 		} catch (UniCommandException e) {
@@ -354,7 +358,6 @@ public class UnidataConnection extends DatabaseConnection {
 	public JSONObject delete(String object, String selection) {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
-		JSONArray result = new JSONArray();
 		UniCommand uCommand = null;
 		try {
 			uCommand = mSession.command();
@@ -407,7 +410,10 @@ public class UnidataConnection extends DatabaseConnection {
 								e.printStackTrace();
 							}
 						}
-						response.put("result", result);
+						JSONArray rows = new JSONArray();
+						JSONArray rowData = new JSONArray();
+						rows.add(rowData);
+						response.put("result", rows);
 					}
 				}
 			}
@@ -418,37 +424,41 @@ public class UnidataConnection extends DatabaseConnection {
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public JSONObject subroutine(String object, String[] values) {
+	public JSONObject subroutine(String object, String[] arguments) {
 		JSONObject response = new JSONObject();
-		JSONArray vals = new JSONArray();
 		try {
-			UniSubroutine subr = mSession.subroutine(object, values.length);
-			for (int i = 0, l = values.length; i < l; i++)
-				subr.setArg(i, values[i]);
+			UniSubroutine subr = mSession.subroutine(object, arguments.length);
+			for (int i = 0, l = arguments.length; i < l; i++)
+				subr.setArg(i, arguments[i]);
 			subr.call();
-			for (int i = 0, l = values.length; i < l; i++)
-				vals.add(parseMultiValues(subr.getArg(i)));
-			response.put("result", vals);
+			
+			JSONArray rows = new JSONArray();
+			int maxSize = 1;
+			ArrayList<String[]> colArr = new ArrayList<String[]>();
+			for (int i = 0, l = arguments.length; i < l; i++) {
+				String[] mvArr = subr.getArg(i).toString().split(UniTokens.AT_VM);
+				if (mvArr.length > maxSize)
+					maxSize = mvArr.length;
+				colArr.add(mvArr);
+			}
+			for (int row = 0; row < maxSize; row++) {
+				JSONArray rowData = new JSONArray();
+				for (int col = 0; col < arguments.length; col++) {
+					String[] mvArr = colArr.get(col);
+					if (row < mvArr.length)
+						rowData.add(mvArr[row]);
+					else
+						rowData.add("");
+				}
+				rows.add(rowData);
+			}
+			response.put("result", rows);
 		} catch (UniSessionException e) {
 			e.printStackTrace();
 		} catch (UniSubroutineException e) {
 			e.printStackTrace();
 		}
 		return response;
-	}
-
-	@SuppressWarnings("unchecked")
-	private JSONArray parseMultiValues(String multivalue) {
-		String[] vmValues = multivalue.split(UniTokens.AT_VM);
-		JSONArray vmValuesJArr = new JSONArray();
-		for (String vmValue : vmValues) {
-			String[] svmValues = vmValue.split(UniTokens.AT_SVM);
-			JSONArray svmValuesJArr = new JSONArray();
-			for (String svmValue : svmValues)
-				svmValuesJArr.add(svmValue);
-			vmValuesJArr.add(svmValuesJArr);
-		}
-		return vmValuesJArr;
 	}
 
 }
