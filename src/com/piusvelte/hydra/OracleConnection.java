@@ -86,19 +86,18 @@ public class OracleConnection extends DatabaseConnection {
 		try {
 			s = mConnection.createStatement();
 			rs = s.executeQuery(statement);
-			JSONArray result = new JSONArray();
+			JSONArray rows = new JSONArray();
 			ResultSetMetaData rsmd = rs.getMetaData();
 			String[] columnsArr = new String[rsmd.getColumnCount()];
 			for (int c = 0, l = columnsArr.length; c < l; c++)
 				columnsArr[c] = rsmd.getColumnName(c);
 			while (rs.next()) {
-				for (String column : columnsArr) {
-					JSONObject col = new JSONObject();
-					col.put(column, (String) rs.getObject(column));
-					result.add(col);
-				}
+				JSONArray rowData = new JSONArray();
+				for (String column : columnsArr)
+					rowData.add((String) rs.getObject(column));
+				rows.add(rowData);
 			}
-			response.put("result", result);
+			response.put("result", rows);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
 		} finally {
@@ -141,15 +140,14 @@ public class OracleConnection extends DatabaseConnection {
 				rs = s.executeQuery(String.format(SELECTION_QUERY_FORMAT, columnsStr, object, selection).toString());
 			else
 				rs = s.executeQuery(String.format(SIMPLE_QUERY_FORMAT, columnsStr, object).toString());
-			JSONArray result = new JSONArray();
-			JSONObject columnJObj = new JSONObject();
+			JSONArray rows = new JSONArray();
 			while (rs.next()) {
-				columnJObj.clear();
+				JSONArray rowData = new JSONArray();
 				for (String column : columns)
-					columnJObj.put(column, (String) rs.getObject(column));
-				result.add(columnJObj);
+					rowData.add((String) rs.getObject(column));
+				rows.add(rowData);
 			}
-			response.put("result", result);
+			response.put("result", rows);
 		} catch (SQLException e) {
 			errors.add(e.getMessage());
 		} finally {

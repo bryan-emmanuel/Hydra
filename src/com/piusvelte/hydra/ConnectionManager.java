@@ -48,7 +48,6 @@ public class ConnectionManager {
 	private static final String sPassphrase = "passphrase";
 	private static final String sHydra = "hydra";
 	private static final String sDatabases = "databases";
-	private static final String sAlias = "alias";
 	private static final String sType = "type";
 	private static final String sDatabase = "database";
 	private static final String sHost = "host";
@@ -212,32 +211,37 @@ public class ConnectionManager {
 	@SuppressWarnings("unchecked")
 	JSONObject getDatabases() {
 		JSONObject response = new JSONObject();
-		JSONArray arr = new JSONArray();
+		JSONArray rows = new JSONArray();
 		synchronized (databaseLock) {
 			Set<String> databases = sDatabaseSettings.keySet();
 			Iterator<String> iter = databases.iterator();
-			while (iter.hasNext())
-				arr.add(iter.next());
+			while (iter.hasNext()) {
+				JSONArray rowData = new JSONArray();
+				rowData.add(iter.next());
+				rows.add(rowData);
+			}
 		}
-		response.put("result", arr);
+		response.put("result", rows);
 		return response;
 	}
 
 	@SuppressWarnings("unchecked")
 	JSONObject getDatabase(String database) {
 		JSONObject response = new JSONObject();
-		JSONObject props = new JSONObject();
+		JSONArray rows = new JSONArray();
 		synchronized (databaseLock) {
 			if (sDatabaseSettings.containsKey(database)) {
+				JSONArray rowData = new JSONArray();
 				HashMap<String, String> databaseSettings = sDatabaseSettings.get(database);
-				props.put(sAlias, database);
-				props.put(sDatabase, databaseSettings.get(sDatabase));
-				props.put(sHost, databaseSettings.get(sHost));
-				props.put(sPort, databaseSettings.get(sPort));
-				props.put(sType, databaseSettings.get(sType));
+				rowData.add(database);
+				rowData.add(databaseSettings.get(sDatabase));
+				rowData.add(databaseSettings.get(sHost));
+				rowData.add(databaseSettings.get(sPort));
+				rowData.add(databaseSettings.get(sType));
+				rows.add(rowData);
 			}
 		}
-		response.put("result", props);
+		response.put("result", rows);
 		return response;
 	}
 

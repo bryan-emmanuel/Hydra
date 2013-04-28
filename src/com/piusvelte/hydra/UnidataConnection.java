@@ -99,7 +99,16 @@ public class UnidataConnection extends DatabaseConnection {
 			UniCommand uCommand = mSession.command();
 			uCommand.setCommand(statement);
 			uCommand.exec();
-			response.put("result", parseMultiValues(uCommand.response()));
+			String[] fmValues = uCommand.response().split(UniTokens.AT_FM);
+			JSONArray rows = new JSONArray();
+			for (String fmValue : fmValues) {
+				JSONArray rowData = new JSONArray();
+				String[] vmValues = fmValue.split(UniTokens.AT_VM);
+				for (String vmValue : vmValues)
+					rowData.add(vmValue);
+				rows.add(rowData);
+			}
+			response.put("result", rows);
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
 		} catch (UniCommandException e) {
@@ -117,7 +126,7 @@ public class UnidataConnection extends DatabaseConnection {
 		UniFile uFile = null;
 
 		try {
-			JSONArray result = new JSONArray();
+			JSONArray rows = new JSONArray();
 			UniCommand uCommand = mSession.command();
 			if (selection == null)
 				uCommand.setCommand(String.format(SIMPLE_QUERY_FORMAT, object).toString());
@@ -139,18 +148,18 @@ public class UnidataConnection extends DatabaseConnection {
 					colArr.add(mvArr);
 				}
 				for (int row = 0; row < maxSize; row++) {
-					JSONObject columnJObj = new JSONObject();
+					JSONArray rowData = new JSONArray();
 					for (int col = 0; col < columns.length; col++) {
 						String[] mvArr = colArr.get(col);
 						if (row < mvArr.length)
-							columnJObj.put(columns[col], mvArr[row]);
+							rowData.add(mvArr[row]);
 						else
-							columnJObj.put(columns[col], "");
+							rowData.add("");
 					}
-					result.add(columnJObj);
+					rows.add(rowData);
 				}
 			}
-			response.put("result", result);
+			response.put("result", rows);
 		} catch (UniSessionException e) {
 			errors.add(e.getMessage());
 		} catch (UniCommandException e) {
