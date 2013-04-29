@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
+import asjava.uniclientlibs.UniDynArray;
 //import asjava.uniclientlibs.UniDynArray;
 import asjava.uniclientlibs.UniString;
 import asjava.uniclientlibs.UniTokens;
@@ -115,6 +116,12 @@ public class UnidataConnection extends DatabaseConnection {
 			errors.add(e.getMessage());
 		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
@@ -178,15 +185,41 @@ public class UnidataConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
-	@SuppressWarnings("unchecked")
-	@Override
-	public JSONObject insert(String object, String[] columns, String[] values) {
-		JSONObject response = new JSONObject();
-		JSONArray errors = new JSONArray();
-		// need the recordID, it may be sent as @ID, or as the Colleague I-descriptors
+	private int[] getDictLocs(String object, String[] columns) throws Exception {
+		int[] locs = new int[columns.length];
+		UniDictionary dict = mSession.openDict(object);
+		Pattern locPattern = Pattern.compile("^\\d+");
+		for (int c = 0; c < columns.length; c++) {
+			try {
+				dict.setRecordID(columns[c]);
+			} catch (UniFileException e) {
+				e.printStackTrace();
+				try {
+					dict.close();
+				} catch (UniFileException e1) {
+					e1.printStackTrace();
+				}
+				throw new Exception("error reading dictionary");
+			}
+			if (locPattern.matcher(dict.getLoc().toString()).matches())
+				locs[c] = Integer.parseInt(dict.getLoc().toString());
+			else
+				locs[c] = 0;
+		}
+		dict.close();
+		return locs;
+	}
+
+	private String getRecordID(String object, String[] columns, String[] values) throws Exception {
 		String recordID = null;
 		for (int c = 0; (c < columns.length) && (c < values.length); c++) {
 			if (("@ID").equals(columns[c])) {
@@ -198,14 +231,14 @@ public class UnidataConnection extends DatabaseConnection {
 		if (recordID == null) {
 			// @ID wasn't sent, look for the Colleague I-descriptors
 			ArrayList<Integer> keyLocs = new ArrayList<Integer>();
+			UniCommand uCommand = mSession.command();
+			uCommand.setCommand(String.format(SELECTION_QUERY_FORMAT, "DICT " + object, "SELECT DICT STUDENT.TERMS WITH LOC LIKE 'FIELD(@ID,...*...'").toString());
+			UniSelectList uSelect = mSession.selectList(0);
+			uCommand.exec();
+			UniDictionary dict = mSession.openDict(object);
+			UniString fieldID = null;
+			Pattern keyPattern = Pattern.compile("^FIELD\\(@ID,\"\\*\",\\d+\\)");
 			try {
-				UniCommand uCommand = mSession.command();
-				uCommand.setCommand(String.format(SELECTION_QUERY_FORMAT, "DICT " + object, "SELECT DICT STUDENT.TERMS WITH LOC LIKE 'FIELD(@ID,...*...'").toString());
-				UniSelectList uSelect = mSession.selectList(0);
-				uCommand.exec();
-				UniDictionary dict = mSession.openDict(object);
-				UniString fieldID = null;
-				Pattern keyPattern = Pattern.compile("^FIELD\\(@ID,\"\\*\",\\d+\\)");
 				while ((fieldID = uSelect.next()).length() > 0) {
 					dict.setRecordID(fieldID);
 					String loc = dict.getLoc().toString();
@@ -217,17 +250,14 @@ public class UnidataConnection extends DatabaseConnection {
 						}
 					}
 				}
-			} catch (UniSessionException e) {
-				e.printStackTrace();
-			} catch (UniCommandException e) {
-				e.printStackTrace();
-			} catch (UniFileException e) {
-				e.printStackTrace();
 			} catch (NumberFormatException e) {
 				e.printStackTrace();
 			} catch (UniSelectListException e) {
 				e.printStackTrace();
+			} catch (UniFileException e) {
+				e.printStackTrace();
 			}
+			dict.close();
 			int s = keyNames.size();
 			if (s > 0) {
 				// check if the keys are defined
@@ -243,7 +273,7 @@ public class UnidataConnection extends DatabaseConnection {
 					}
 				}
 				if (partsFound < s)
-					errors.add("key not defined");
+					throw new Exception("key not defined");
 				else {
 					recordID = "";
 					for (int k = 0; k < s; k++)
@@ -251,55 +281,52 @@ public class UnidataConnection extends DatabaseConnection {
 				}
 			}
 		}
-		if (recordID != null) {
-			UniFile uFile = null;
+		return recordID;
+	}
+
+	@SuppressWarnings("unchecked")
+	@Override
+	public JSONObject insert(String object, String[] columns, String[] values) {
+		JSONObject response = new JSONObject();
+		JSONArray errors = new JSONArray();
+		UniFile uFile = null;
+		try {
+			String recordID = getRecordID(object, columns, values);
+			int[] locs = getDictLocs(object, columns);
 			try {
 				uFile = mSession.openFile(object);
+				UniDynArray record = new UniDynArray();
+				for (int c = 0; (c < columns.length) && (c < values.length); c++) {
+					// don't try to write the Colleague I-descriptors
+					if ((locs[c] > 0) && !("@ID").equals(columns[c]))
+						record.insert(locs[c], values[c]);
+				}
+				uFile.write(recordID, record);
 			} catch (UniSessionException e) {
 				e.printStackTrace();
 				errors.add("error opening file: " + object + ": " + e.getMessage());
+			} catch (UniFileException e) {
+				e.printStackTrace();
 			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			errors.add(e.getMessage());
+		} finally {
 			if (uFile != null) {
-				boolean fieldsWritten = false;
 				try {
-					uFile.setRecordID(recordID);
+					uFile.close();
 				} catch (UniFileException e) {
 					e.printStackTrace();
-					fieldsWritten = false;
-				}
-				fieldsWritten = true;
-				for (int c = 0, cl = columns.length; c < cl; c++) {
-					if (c < values.length) {
-						// don't try to write the Colleague I-descriptors
-						if (!keyNames.contains(columns[c])) {
-							try {
-								uFile.writeNamedField(columns[c], values[c]);
-							} catch (UniFileException e) {
-								e.printStackTrace();
-								fieldsWritten = false;
-								errors.add("error writing field: " + columns[c] + "=" + values[c] + ": " + e.getMessage());
-							}
-						}
-					}
-				}
-				if (fieldsWritten) {
-					try {
-						uFile.write();
-					} catch (UniFileException e) {
-						e.printStackTrace();
-						errors.add("error writing file: " + e.getMessage());
-					}
-					JSONArray rows = new JSONArray();
-					JSONArray rowData = new JSONArray();
-					rows.add(rowData);
-					response.put("result", rows);
 				}
 			}
-			else
-				errors.add("key not defined");
-		} else
-			errors.add("key not found");
+		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
@@ -309,8 +336,8 @@ public class UnidataConnection extends DatabaseConnection {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		UniFile uFile = null;
-
 		try {
+			int[] locs = getDictLocs(object, columns);
 			UniCommand uCommand = mSession.command();
 			if (selection == null)
 				uCommand.setCommand(String.format(SIMPLE_QUERY_FORMAT, object).toString());
@@ -321,35 +348,48 @@ public class UnidataConnection extends DatabaseConnection {
 			uFile = mSession.openFile(object);
 			UniString recordID = null;
 			while ((recordID = uSelect.next()).length() > 0) {
-				uFile.setRecordID(recordID);
-				for (int c = 0, cl = columns.length; c < cl; c++) {
-					if (c < values.length)
-						uFile.writeNamedField(columns[c], values[c]);
+				UniDynArray record = new UniDynArray(uFile.read(recordID));
+				for (int c = 0; c < columns.length; c++) {
+					if ((locs[c] > 0) && !("@ID").equals(columns[c]))
+						record.replace(locs[c], values[c]);
 				}
-				uFile.write();
+				uFile.write(recordID, record);
 			}
 			JSONArray rows = new JSONArray();
 			JSONArray rowData = new JSONArray();
 			rows.add(rowData);
 			response.put("result", rows);
 		} catch (UniSessionException e) {
+			e.printStackTrace();
 			errors.add(e.getMessage());
 		} catch (UniCommandException e) {
+			e.printStackTrace();
 			errors.add(e.getMessage());
 		} catch (UniFileException e) {
+			e.printStackTrace();
 			errors.add(e.getMessage());
 		} catch (UniSelectListException e) {
+			e.printStackTrace();
+			errors.add(e.getMessage());
+		} catch (Exception e) {
+			e.printStackTrace();
 			errors.add(e.getMessage());
 		} finally {
 			if (uFile != null) {
 				try {
 					uFile.close();
 				} catch (UniFileException e) {
-					errors.add(e.getMessage());
+					e.printStackTrace();
 				}
 			}
 		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
@@ -359,66 +399,51 @@ public class UnidataConnection extends DatabaseConnection {
 		JSONObject response = new JSONObject();
 		JSONArray errors = new JSONArray();
 		UniCommand uCommand = null;
+		UniFile uFile = null;
 		try {
 			uCommand = mSession.command();
+			if (selection == null)
+				uCommand.setCommand(String.format(SIMPLE_QUERY_FORMAT, object).toString());
+			else
+				uCommand.setCommand(String.format(SELECTION_QUERY_FORMAT, object, selection).toString());
+			UniSelectList uSelect = mSession.selectList(0);
+			uCommand.exec();
+			uFile = mSession.openFile(object);
+			UniString recordID = null;
+			while ((recordID = uSelect.next()).length() > 0)
+				uFile.deleteRecord(recordID);
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
 		} catch (UniSessionException e) {
 			e.printStackTrace();
 			errors.add("error getting command: " + e.getMessage());
-		}
-		if (uCommand != null) {
-			UniFile uFile = null;
-			try {
-				uFile = mSession.openFile(object);
-			} catch (UniSessionException e) {
-				e.printStackTrace();
-				errors.add("error opening file: " + object + ": " + e.getMessage());
-			}
+		} catch (UniCommandException e) {
+			e.printStackTrace();
+			errors.add(e.getMessage());
+		} catch (UniSelectListException e) {
+			e.printStackTrace();
+			errors.add(e.getMessage());
+		} catch (UniFileException e) {
+			e.printStackTrace();
+			errors.add(e.getMessage());
+		} finally {
 			if (uFile != null) {
-				if (selection == null)
-					uCommand.setCommand(String.format(SIMPLE_QUERY_FORMAT, object).toString());
-				else
-					uCommand.setCommand(String.format(SELECTION_QUERY_FORMAT, object, selection).toString());
-				UniSelectList uSelect = null;
 				try {
-					uSelect = mSession.selectList(0);
-				} catch (UniSessionException e) {
+					uFile.close();
+				} catch (UniFileException e) {
 					e.printStackTrace();
-				}
-				if (uSelect != null) {
-					boolean gotSelection = false;
-					try {
-						uCommand.exec();
-						gotSelection = true;
-					} catch (UniCommandException e) {
-						e.printStackTrace();
-						errors.add("error getting selection: " + e.getMessage());
-					}
-					if (gotSelection) {
-						UniString recordID = null;
-						try {
-							recordID = uSelect.next();
-						} catch (UniSelectListException e) {
-							e.printStackTrace();
-							errors.add("error getting next record id: " + e.getMessage());
-						}
-						while ((recordID != null) && (recordID.length() > 0)) {
-							try {
-								uFile.setRecordID(recordID);
-								uFile.deleteRecord();
-								uFile.write();
-							} catch (UniFileException e) {
-								e.printStackTrace();
-							}
-						}
-						JSONArray rows = new JSONArray();
-						JSONArray rowData = new JSONArray();
-						rows.add(rowData);
-						response.put("result", rows);
-					}
 				}
 			}
 		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
@@ -431,7 +456,7 @@ public class UnidataConnection extends DatabaseConnection {
 			for (int i = 0, l = arguments.length; i < l; i++)
 				subr.setArg(i, arguments[i]);
 			subr.call();
-			
+
 			JSONArray rows = new JSONArray();
 			int maxSize = 1;
 			ArrayList<String[]> colArr = new ArrayList<String[]>();
@@ -457,6 +482,12 @@ public class UnidataConnection extends DatabaseConnection {
 			e.printStackTrace();
 		} catch (UniSubroutineException e) {
 			e.printStackTrace();
+		}
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
 		}
 		return response;
 	}

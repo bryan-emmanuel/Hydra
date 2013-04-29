@@ -180,8 +180,14 @@ public class ApiServlet extends HttpServlet {
 					response.setStatus(200);
 					j.put("errors", errors);
 					response.getWriter().write(j.toJSONString());
-				} else
+				} else {
 					response.setStatus(502);
+					JSONObject j = new JSONObject();
+					JSONArray errors = new JSONArray();
+					errors.add("no database connection available");
+					j.put("errors", errors);
+					response.getWriter().write(j.toJSONString());
+				}
 				connMgr.cleanDatabaseConnections(hydraRequest.database);
 			} else
 				response.setStatus(402);
@@ -215,10 +221,11 @@ public class ApiServlet extends HttpServlet {
 					databaseConnection = connMgr.getDatabaseConnection(hydraRequest.database);
 			} catch (Exception e) {
 				e.printStackTrace();
+				
 			}
 			connMgr.dequeueDatabaseRequest(hydraRequest.database);
 			if (databaseConnection != null) {
-				response.getWriter().write(databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection).toJSONString());
+				response.getWriter().write(databaseConnection.update(hydraRequest.target, hydraRequest.columns, hydraRequest.values, hydraRequest.selection).toJSONString());
 				databaseConnection.release();
 			} else if (hydraRequest.queueable) {
 				JSONObject j = new JSONObject();
@@ -229,8 +236,14 @@ public class ApiServlet extends HttpServlet {
 				response.setStatus(200);
 				j.put("errors", errors);
 				response.getWriter().write(j.toJSONString());
-			} else
+			} else {
 				response.setStatus(502);
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add("no database connection available");
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+			}
 			connMgr.cleanDatabaseConnections(hydraRequest.database);
 		} else {
 			response.setStatus(401);
@@ -265,7 +278,7 @@ public class ApiServlet extends HttpServlet {
 			}
 			connMgr.dequeueDatabaseRequest(hydraRequest.database);
 			if (databaseConnection != null) {
-				response.getWriter().write(databaseConnection.query(hydraRequest.target, hydraRequest.columns, hydraRequest.selection).toJSONString());
+				response.getWriter().write(databaseConnection.delete(hydraRequest.target, hydraRequest.selection).toJSONString());
 				databaseConnection.release();
 			} else if (hydraRequest.queueable) {
 				JSONObject j = new JSONObject();
@@ -276,8 +289,14 @@ public class ApiServlet extends HttpServlet {
 				response.setStatus(200);
 				j.put("errors", errors);
 				response.getWriter().write(j.toJSONString());
-			} else
+			} else {
 				response.setStatus(502);
+				JSONObject j = new JSONObject();
+				JSONArray errors = new JSONArray();
+				errors.add("no database connection available");
+				j.put("errors", errors);
+				response.getWriter().write(j.toJSONString());
+			}
 			connMgr.cleanDatabaseConnections(hydraRequest.database);
 		} else {
 			response.setStatus(401);

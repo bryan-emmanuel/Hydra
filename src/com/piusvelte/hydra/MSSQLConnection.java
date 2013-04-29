@@ -111,6 +111,12 @@ public class MSSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
@@ -154,6 +160,12 @@ public class MSSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
@@ -202,6 +214,12 @@ public class MSSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
@@ -243,6 +261,12 @@ public class MSSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
@@ -277,6 +301,12 @@ public class MSSQLConnection extends DatabaseConnection {
 			}
 		}
 		response.put("errors", errors);
+		if (!response.containsKey("result")) {
+			JSONArray rows = new JSONArray();
+			JSONArray rowData = new JSONArray();
+			rows.add(rowData);
+			response.put("result", rows);
+		}
 		return response;
 	}
 
