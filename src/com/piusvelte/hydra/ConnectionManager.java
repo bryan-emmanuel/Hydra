@@ -286,9 +286,8 @@ public class ConnectionManager {
 				try {
 					br = new BufferedReader(new InputStreamReader(new FileInputStream(tokenFile)));
 					br.readLine();
-					while ((token = br.readLine()) != null) {
+					while ((token = br.readLine()) != null)
 						tokens.add(getHash64(token + passphrase));
-					}
 					br.close();
 				} catch (FileNotFoundException e) {
 					e.printStackTrace();
@@ -333,6 +332,7 @@ public class ConnectionManager {
 						pw = new PrintWriter(new FileOutputStream(tokenFile, true));
 						pw.println(unauthorizedTokens.get(token));
 						pw.close();
+						tokens.add(getHash64(unauthorizedTokens.get(token) + passphrase));
 					} catch (FileNotFoundException e) {
 						e.printStackTrace();
 						throw new Exception("error storing token");
