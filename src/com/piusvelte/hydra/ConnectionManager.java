@@ -83,6 +83,8 @@ public class ConnectionManager {
 	private static ConnectionManager hydraService = null;
 	
 	private ConnectionManager(ServletContext ctx) {
+		
+		ctx.log("Hydra ConnectionManager instantiated");
 
 		mQueueRetryInterval = QueueThread.DEFAULT_QUEUERETRYINTERVAL;
 
@@ -95,6 +97,7 @@ public class ConnectionManager {
 		}
 
 		if (properties != null) {
+			ctx.log("Hydra properties file read");
 			if (properties.containsKey(sPassphrase))
 				passphrase = properties.getProperty(sPassphrase);
 			if (properties.containsKey(sHydra)) {
@@ -118,8 +121,9 @@ public class ConnectionManager {
 				String[] databaseProperties = new String[]{sType, sDatabase, sHost, sPort, sUsername, sPassword, sConnections, sDASU, sDASP, sSQLENVINIT};
 				for (String databaseAlias : databaseAliases) {
 					HashMap<String, String> database = new HashMap<String, String>();
-					for (String databaseProperty : databaseProperties)
+					for (String databaseProperty : databaseProperties) {
 						database.put(databaseProperty, properties.getProperty(databaseAlias + "." + databaseProperty, ""));
+					}
 					synchronized (databaseLock) {
 						sDatabaseSettings.put(databaseAlias, database);
 						sDatabaseConnections.put(databaseAlias, new ArrayList<DatabaseConnection>());

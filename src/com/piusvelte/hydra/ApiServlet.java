@@ -21,8 +21,8 @@ package com.piusvelte.hydra;
 
 import java.io.IOException;
 
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -30,7 +30,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-@WebServlet("/api/*")
 public class ApiServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
@@ -71,11 +70,12 @@ public class ApiServlet extends HttpServlet {
 		if (request.getParameter(PARAM_TOKEN) == null)
 			response.getWriter().write("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Hydra</title></head><body><h3>Hydra API</h3>");
 		else {
+			ServletContext ctx = getServletContext();
 			HydraRequest hydraRequest;
 			try {
 				hydraRequest = HydraRequest.fromGet(request);
 			} catch (Exception e) {
-				System.out.println("crap: " + e.getMessage());
+				ctx.log(e.getMessage());
 				JSONObject j = new JSONObject();
 				JSONArray errors = new JSONArray();
 				errors.add(e.getMessage());
@@ -84,7 +84,7 @@ public class ApiServlet extends HttpServlet {
 				response.getWriter().write(j.toJSONString());
 				return;
 			}
-			ConnectionManager connMgr = ConnectionManager.getInstance(getServletContext());
+			ConnectionManager connMgr = ConnectionManager.getInstance(ctx);
 			if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
 				if (hydraRequest.hasDatabase()) {
 					if (hydraRequest.hasTarget()) {
@@ -94,7 +94,7 @@ public class ApiServlet extends HttpServlet {
 							while (databaseConnection == null)
 								databaseConnection = connMgr.getDatabaseConnection(hydraRequest.database);
 						} catch (Exception e) {
-							e.printStackTrace();
+							ctx.log("Hydra: " + e.getMessage());
 						}
 						connMgr.dequeueDatabaseRequest(hydraRequest.database);
 						if (databaseConnection != null) {
@@ -109,14 +109,19 @@ public class ApiServlet extends HttpServlet {
 							response.setStatus(200);
 							j.put("errors", errors);
 							response.getWriter().write(j.toJSONString());
-						} else
+						} else {
 							response.setStatus(502);
+						}
 						connMgr.cleanDatabaseConnections(hydraRequest.database);
-					} else
+					} else {
+						ctx.log("get database");
 						response.getWriter().write(connMgr.getDatabase(hydraRequest.database).toJSONString());
-				} else
+					}
+				} else {
 					response.getWriter().write(connMgr.getDatabases().toJSONString());
+				}
 			} else {
+				ctx.log("not authenticated");
 				JSONObject j = new JSONObject();
 				JSONArray errors = new JSONArray();
 				errors.add("not authenticated");

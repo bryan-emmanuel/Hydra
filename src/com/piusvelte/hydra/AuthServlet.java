@@ -21,8 +21,8 @@ package com.piusvelte.hydra;
 
 import java.io.IOException;
 
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -30,20 +30,21 @@ import javax.servlet.http.HttpServletResponse;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-@WebServlet("/auth")
 public class AuthServlet extends HttpServlet {
 
 	private static final long serialVersionUID = 1L;
 
 	public void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		ConnectionManager connMgr = ConnectionManager.getInstance(getServletContext());
+
+		ServletContext servletContext = getServletContext();
+		ConnectionManager connMgr = ConnectionManager.getInstance(servletContext);
 		JSONObject j = new JSONObject();
 		String token = request.getParameter("token");
 		if ((token != null) && (token.length() > 0)) {
 			try {
 				connMgr.authorizeToken(token);
 			} catch (Exception e) {
-				e.printStackTrace();
+				servletContext.log(e.getMessage());
 				JSONArray errors = new JSONArray();
 				errors.add(e.getMessage());
 				j.put("errors", errors);
@@ -53,7 +54,7 @@ public class AuthServlet extends HttpServlet {
 			try {
 				j.put("result", connMgr.createToken());
 			} catch (Exception e) {
-				e.printStackTrace();
+				servletContext.log(e.getMessage());
 				JSONArray errors = new JSONArray();
 				errors.add(e.getMessage());
 				j.put("errors", errors);
