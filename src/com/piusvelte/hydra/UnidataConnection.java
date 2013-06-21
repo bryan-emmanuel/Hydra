@@ -100,11 +100,11 @@ public class UnidataConnection extends DatabaseConnection {
 			UniCommand uCommand = mSession.command();
 			uCommand.setCommand(statement);
 			uCommand.exec();
-			String[] fmValues = uCommand.response().split(UniTokens.AT_FM);
+			String[] fmValues = uCommand.response().split(UniTokens.AT_FM, -1);
 			JSONArray rows = new JSONArray();
 			for (String fmValue : fmValues) {
 				JSONArray rowData = new JSONArray();
-				String[] vmValues = fmValue.split(UniTokens.AT_VM);
+				String[] vmValues = fmValue.split(UniTokens.AT_VM, -1);
 				for (String vmValue : vmValues)
 					rowData.add(vmValue);
 				rows.add(rowData);
@@ -149,7 +149,7 @@ public class UnidataConnection extends DatabaseConnection {
 				int maxSize = 1;
 				ArrayList<String[]> colArr = new ArrayList<String[]>();
 				for (String column : columns) {
-					String[] mvArr = uFile.readNamedField(column).toString().split(UniTokens.AT_VM);
+					String[] mvArr = uFile.readNamedField(column).toString().split(UniTokens.AT_VM, -1);
 					if (mvArr.length > maxSize)
 						maxSize = mvArr.length;
 					colArr.add(mvArr);
@@ -461,7 +461,7 @@ public class UnidataConnection extends DatabaseConnection {
 			int maxSize = 1;
 			ArrayList<String[]> colArr = new ArrayList<String[]>();
 			for (int i = 0, l = arguments.length; i < l; i++) {
-				String[] mvArr = subr.getArg(i).toString().split(UniTokens.AT_VM);
+				String[] mvArr = subr.getArg(i).toString().split(UniTokens.AT_VM, -1);
 				if (mvArr.length > maxSize)
 					maxSize = mvArr.length;
 				colArr.add(mvArr);

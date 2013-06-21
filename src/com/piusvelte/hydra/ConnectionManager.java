@@ -117,7 +117,7 @@ public class ConnectionManager {
 			if (properties.containsKey(sQueueRetryInterval))
 				mQueueRetryInterval = Integer.parseInt(properties.getProperty(sQueueRetryInterval));
 			if (properties.containsKey(sDatabases)) {
-				String[] databaseAliases = properties.getProperty(sDatabases).split(",");
+				String[] databaseAliases = properties.getProperty(sDatabases).split(",", -1);
 				String[] databaseProperties = new String[]{sType, sDatabase, sHost, sPort, sUsername, sPassword, sConnections, sDASU, sDASP, sSQLENVINIT};
 				for (String databaseAlias : databaseAliases) {
 					HashMap<String, String> database = new HashMap<String, String>();
