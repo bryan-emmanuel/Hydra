@@ -96,29 +96,40 @@ public class HydraRequest {
 		database = parts[DATABASE];
 		target = parts[TARGET];
 		String columns = request.getParameter(PARAM_COLUMNS);
-		if (columns != null)
-			this.columns = columns.split(",");
-		else
+		if (columns != null) {
+			this.columns = columns.split(",", -1);
+		} else {
 			this.columns = new String[0];
+		}
 		String values = request.getParameter(PARAM_VALUES);
-		if (values != null)
-			this.values = values.split(",");
-		else
+		if (values != null) {
+			this.values = values.split(",", -1);
+		} else {
 			this.values = new String[0];
+		}
 		String arguments = request.getParameter(PARAM_ARGUMENTS);
-		if (arguments != null)
-			this.arguments = arguments.split(",");
-		else
+		if (arguments != null) {
+			this.arguments = arguments.split(",", -1);
+		} else {
 			this.arguments = new String[0];
+		}
+		//TODO
+		System.out.println("argstring=" + arguments);
+		for (String arg : this.arguments) {
+			System.out.println("arg=" + arg);
+		}
 		selection = request.getParameter(PARAM_SELECTION);
-		if (selection != null)
+		if (selection != null) {
 			selection = URLDecoder.decode(selection, "UTF-8");
+		}
 		String q = request.getParameter(PARAM_QUEUEABLE);
-		if (q != null)
+		if (q != null) {
 			queueable = Boolean.parseBoolean(q);
+		}
 		command = request.getParameter(PARAM_COMMAND);
-		if (command != null)
+		if (command != null) {
 			command = URLDecoder.decode(command, "UTF-8");
+		}
 	}
 	
 	public static HydraRequest fromGet(HttpServletRequest request) throws Exception {
@@ -189,7 +200,7 @@ public class HydraRequest {
 			if (path.substring(0, 1).equals("/"))
 				path = path.substring(1);
 			if (path.length() > 0) {
-				String[] paths = path.split("/");
+				String[] paths = path.split("/", -1);
 				if (paths[DATABASE].length() > 0)
 					parts[DATABASE] = paths[DATABASE];
 				if ((paths.length > TARGET) && (paths[TARGET].length() > 0))

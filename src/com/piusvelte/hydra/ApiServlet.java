@@ -114,7 +114,6 @@ public class ApiServlet extends HttpServlet {
 						}
 						connMgr.cleanDatabaseConnections(hydraRequest.database);
 					} else {
-						ctx.log("get database");
 						response.getWriter().write(connMgr.getDatabase(hydraRequest.database).toJSONString());
 					}
 				} else {
