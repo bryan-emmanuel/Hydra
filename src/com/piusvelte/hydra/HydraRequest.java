@@ -43,26 +43,26 @@ public class HydraRequest {
 	boolean queueable = false;
 	String command = null;
 	
-	public HydraRequest(String action, String database, String target, String[] columns, String[] values, String[] arguments, String selection, boolean queueable, String command) {
-		this.action = action;
-		this.database = database;
-		this.target = target;
-		if (columns != null)
-			this.columns = columns;
-		else
-			this.columns = new String[0];
-		if (values != null)
-			this.values = values;
-		else
-			this.columns = new String[0];
-		if (arguments != null)
-			this.arguments = arguments;
-		else
-			this.arguments = new String[0];
-		this.selection = selection;
-		this.queueable = queueable;
-		this.command = command;
-	}
+//	public HydraRequest(String action, String database, String target, String[] columns, String[] values, String[] arguments, String selection, boolean queueable, String command) {
+//		this.action = action;
+//		this.database = database;
+//		this.target = target;
+//		if (columns != null)
+//			this.columns = columns;
+//		else
+//			this.columns = new String[0];
+//		if (values != null)
+//			this.values = values;
+//		else
+//			this.columns = new String[0];
+//		if (arguments != null)
+//			this.arguments = arguments;
+//		else
+//			this.arguments = new String[0];
+//		this.selection = selection;
+//		this.queueable = queueable;
+//		this.command = command;
+//	}
 	
 	public HydraRequest(String queuedRequest) throws ParseException {
 		JSONParser parser = new JSONParser();
@@ -95,29 +95,9 @@ public class HydraRequest {
 		String[] parts = getPathParts(request);
 		database = parts[DATABASE];
 		target = parts[TARGET];
-		String columns = request.getParameter(PARAM_COLUMNS);
-		if (columns != null) {
-			this.columns = columns.split(",", -1);
-		} else {
-			this.columns = new String[0];
-		}
-		String values = request.getParameter(PARAM_VALUES);
-		if (values != null) {
-			this.values = values.split(",", -1);
-		} else {
-			this.values = new String[0];
-		}
-		String arguments = request.getParameter(PARAM_ARGUMENTS);
-		if (arguments != null) {
-			this.arguments = arguments.split(",", -1);
-		} else {
-			this.arguments = new String[0];
-		}
-		//TODO
-		System.out.println("argstring=" + arguments);
-		for (String arg : this.arguments) {
-			System.out.println("arg=" + arg);
-		}
+		columns = unpackArray(request.getParameter(PARAM_COLUMNS));
+		values = unpackArray(request.getParameter(PARAM_VALUES));
+		arguments = unpackArray(request.getParameter(PARAM_ARGUMENTS));
 		selection = request.getParameter(PARAM_SELECTION);
 		if (selection != null) {
 			selection = URLDecoder.decode(selection, "UTF-8");
@@ -129,6 +109,22 @@ public class HydraRequest {
 		command = request.getParameter(PARAM_COMMAND);
 		if (command != null) {
 			command = URLDecoder.decode(command, "UTF-8");
+		}
+	}
+	
+	private String[] unpackArray(String packedArray) {
+		if (packedArray == null) {
+			return new String[0];
+		} else {
+			String[] arr = packedArray.split(",", -1);
+			// decode nested commas
+			for (int i = 0; i < arr.length; i++) {
+				try {
+					arr[i] = URLDecoder.decode(arr[i], "UTF-8");
+				} catch (UnsupportedEncodingException e) {
+				}
+			}
+			return arr;
 		}
 	}
 	
