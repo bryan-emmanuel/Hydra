@@ -43,27 +43,6 @@ public class HydraRequest {
 	boolean queueable = false;
 	String command = null;
 	
-//	public HydraRequest(String action, String database, String target, String[] columns, String[] values, String[] arguments, String selection, boolean queueable, String command) {
-//		this.action = action;
-//		this.database = database;
-//		this.target = target;
-//		if (columns != null)
-//			this.columns = columns;
-//		else
-//			this.columns = new String[0];
-//		if (values != null)
-//			this.values = values;
-//		else
-//			this.columns = new String[0];
-//		if (arguments != null)
-//			this.arguments = arguments;
-//		else
-//			this.arguments = new String[0];
-//		this.selection = selection;
-//		this.queueable = queueable;
-//		this.command = command;
-//	}
-	
 	public HydraRequest(String queuedRequest) throws ParseException {
 		JSONParser parser = new JSONParser();
 		JSONObject request = (JSONObject) parser.parse(queuedRequest);

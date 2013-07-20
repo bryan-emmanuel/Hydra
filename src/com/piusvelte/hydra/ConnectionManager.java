@@ -25,6 +25,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
@@ -46,7 +47,6 @@ import org.json.simple.JSONObject;
 public class ConnectionManager {
 
 	private static final String sPassphrase = "passphrase";
-	private static final String sHydra = "hydra";
 	private static final String sDatabases = "databases";
 	private static final String sType = "type";
 	private static final String sDatabase = "database";
@@ -74,37 +74,41 @@ public class ConnectionManager {
 	private QueueThread sQueueThread = null;
 	private int[] sQueueLock = new int[0];
 	private String tokenFile = null;
-	private String sHydraProperties = "/WEB-INF/hydra.properties";
+	private String HYDRA_PROPERTIES = "hydra.properties";
 	private int mQueueRetryInterval;
 	private int[] tokenLock = new int[0];
 	private ArrayList<String> tokens = new ArrayList<String>();
 	private HashMap<String, String> unauthorizedTokens = new HashMap<String, String>();
 
 	private static ConnectionManager hydraService = null;
-	
+
 	private ConnectionManager(ServletContext ctx) {
-		
+
 		ctx.log("Hydra ConnectionManager instantiated");
 
-		mQueueRetryInterval = QueueThread.DEFAULT_QUEUERETRYINTERVAL;
+		String fullPathParts[] = ctx.getRealPath(File.separator).split(File.separator, -1);
 
-		Properties properties = new Properties();
-		try {
-			properties.load(ctx.getResourceAsStream(sHydraProperties));
-		} catch (IOException e) {
-			properties = null;
-			e.printStackTrace();
+		sHydraDir = fullPathParts[0] + File.separator + "Hydra";
+		if (fullPathParts.length > 2) {
+			if (fullPathParts.length > 3) {
+				sHydraDir += File.separator + fullPathParts[fullPathParts.length - 3];
+			}
+			sHydraDir += File.separator + fullPathParts[fullPathParts.length - 2];
 		}
 
-		if (properties != null) {
-			ctx.log("Hydra properties file read");
-			if (properties.containsKey(sPassphrase))
-				passphrase = properties.getProperty(sPassphrase);
-			if (properties.containsKey(sHydra)) {
-				sHydraDir = properties.getProperty(sHydra);
-				if (sHydraDir.length() > 0) {
-					if (!File.separator.equals(sHydraDir.substring(sHydraDir.length() - 1, sHydraDir.length())))
-						sHydraDir += File.separator;
+		mQueueRetryInterval = QueueThread.DEFAULT_QUEUERETRYINTERVAL;
+		
+		File hydraDir = new File(sHydraDir);
+		if (hydraDir.exists()) {
+			sHydraDir += File.separator;
+			InputStream is = ctx.getResourceAsStream(sHydraDir + HYDRA_PROPERTIES);
+			if (is != null) {
+				Properties properties = new Properties();
+				try {
+					properties.load(is);
+					ctx.log("Hydra properties file read");
+					if (properties.containsKey(sPassphrase))
+						passphrase = properties.getProperty(sPassphrase);
 					sQueueFile = sHydraDir + "queue";
 					tokenFile = sHydraDir + "tokens";
 					try {
@@ -112,25 +116,62 @@ public class ConnectionManager {
 					} catch (Exception e) {
 						e.printStackTrace();
 					}
-				}
-			}
-			if (properties.containsKey(sQueueRetryInterval))
-				mQueueRetryInterval = Integer.parseInt(properties.getProperty(sQueueRetryInterval));
-			if (properties.containsKey(sDatabases)) {
-				String[] databaseAliases = properties.getProperty(sDatabases).split(",", -1);
-				String[] databaseProperties = new String[]{sType, sDatabase, sHost, sPort, sUsername, sPassword, sConnections, sDASU, sDASP, sSQLENVINIT};
-				for (String databaseAlias : databaseAliases) {
-					HashMap<String, String> database = new HashMap<String, String>();
-					for (String databaseProperty : databaseProperties) {
-						database.put(databaseProperty, properties.getProperty(databaseAlias + "." + databaseProperty, ""));
+					if (properties.containsKey(sQueueRetryInterval))
+						mQueueRetryInterval = Integer.parseInt(properties.getProperty(sQueueRetryInterval));
+					if (properties.containsKey(sDatabases)) {
+						String[] databaseAliases = properties.getProperty(sDatabases).split(",", -1);
+						String[] databaseProperties = new String[]{sType, sDatabase, sHost, sPort, sUsername, sPassword, sConnections, sDASU, sDASP, sSQLENVINIT};
+						for (String databaseAlias : databaseAliases) {
+							HashMap<String, String> database = new HashMap<String, String>();
+							for (String databaseProperty : databaseProperties) {
+								database.put(databaseProperty, properties.getProperty(databaseAlias + "." + databaseProperty, ""));
+							}
+							synchronized (databaseLock) {
+								sDatabaseSettings.put(databaseAlias, database);
+								sDatabaseConnections.put(databaseAlias, new ArrayList<DatabaseConnection>());
+								queuedDatabaseRequests.put(databaseAlias, 0);
+							}
+						}
 					}
-					synchronized (databaseLock) {
-						sDatabaseSettings.put(databaseAlias, database);
-						sDatabaseConnections.put(databaseAlias, new ArrayList<DatabaseConnection>());
-						queuedDatabaseRequests.put(databaseAlias, 0);
-					}
+				} catch (IOException e) {
+					e.printStackTrace();
 				}
+			} else {
+				initProps();
 			}
+		} else if (hydraDir.mkdirs()) {
+			sHydraDir += File.separator;
+			initProps();
+		} else {
+			ctx.log("properties doesn't exist, and creating it failed at: " + sHydraDir);
+		}
+	}
+	
+	private void initProps() {
+		Properties properties = new Properties();
+		properties.put(sPassphrase, "changeit");
+		properties.put(sDatabases, "");
+		PrintWriter pw;
+		try {
+			pw = new PrintWriter(new FileOutputStream(sHydraDir + HYDRA_PROPERTIES));
+			properties.store(pw, "The passphrase is used to authorize tokens\n Databases should be a comment delimited string of database aliases, followed by their connection properties\n" +
+					" database types:\n 	unidata\n   mysql\n   mssql\n   oracle\n   postgresql\n\nexample:" +
+					"databases=mydb\n"
+					+ "mydb.type=unidata\n"
+					+ "mydb.database=C:\\U2\\ud73\\demo\n"
+					+ "mydb.host=localhost\n"
+					+ "mydb.port=31438\n"
+					+ "mydb.username=myuser\n"
+					+ "mydb.password=mypss\n"
+					+ "mydb.connections=1\n"
+					+ "mydb.DASU=mydasu\n"
+					+ "mydb.DASP=mydasp\n"
+					+ "mddb.SQLENVINIT=\n");
+			pw.close();
+		} catch (FileNotFoundException e1) {
+			e1.printStackTrace();
+		} catch (IOException e1) {
+			e1.printStackTrace();
 		}
 	}
 
