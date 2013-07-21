@@ -79,6 +79,9 @@ public class ConnectionManager {
 	private int[] tokenLock = new int[0];
 	private ArrayList<String> tokens = new ArrayList<String>();
 	private HashMap<String, String> unauthorizedTokens = new HashMap<String, String>();
+	
+	private static final String WIN_DIR = "ProgramData";
+	private static final String NIX_DIR = "var/lib";
 
 	private static ConnectionManager hydraService = null;
 
@@ -88,7 +91,16 @@ public class ConnectionManager {
 
 		String fullPathParts[] = ctx.getRealPath(File.separator).split(File.separator, -1);
 
-		sHydraDir = fullPathParts[0] + File.separator + "Hydra";
+		sHydraDir = fullPathParts[0] + File.separator;
+		
+		if (System.getProperty("os.name").startsWith("Windows")) {
+			sHydraDir += WIN_DIR;
+		} else {
+			sHydraDir += NIX_DIR;
+		}
+		sHydraDir += File.separator + "hydra";
+		
+		
 		if (fullPathParts.length > 2) {
 			if (fullPathParts.length > 3) {
 				sHydraDir += File.separator + fullPathParts[fullPathParts.length - 3];
@@ -155,7 +167,7 @@ public class ConnectionManager {
 		try {
 			pw = new PrintWriter(new FileOutputStream(sHydraDir + HYDRA_PROPERTIES));
 			properties.store(pw, "The passphrase is used to authorize tokens\n Databases should be a comment delimited string of database aliases, followed by their connection properties\n" +
-					" database types:\n 	unidata\n   mysql\n   mssql\n   oracle\n   postgresql\n\nexample:" +
+					" database types:\n   unidata\n   mysql\n   mssql\n   oracle\n   postgresql\n\nexample:" +
 					"databases=mydb\n"
 					+ "mydb.type=unidata\n"
 					+ "mydb.database=C:\\U2\\ud73\\demo\n"
