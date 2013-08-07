@@ -89,17 +89,19 @@ public class ConnectionManager {
 
 		ctx.log("Hydra ConnectionManager instantiated");
 
-		String fullPathParts[] = ctx.getRealPath(File.separator).split(File.separator, -1);
-
-		sHydraDir = fullPathParts[0] + File.separator;
+		String[] fullPathParts;
 		
 		if (System.getProperty("os.name").startsWith("Windows")) {
-			sHydraDir += WIN_DIR;
+			fullPathParts = ctx.getRealPath(File.separator).split("\\\\", -1);
+			sHydraDir = fullPathParts[0] + File.separator + WIN_DIR;
+			
 		} else {
-			sHydraDir += NIX_DIR;
+			fullPathParts = ctx.getRealPath(File.separator).split(File.separator, -1);
+			sHydraDir = fullPathParts[0] + File.separator + NIX_DIR;
 		}
-		sHydraDir += File.separator + "hydra";
 		
+		sHydraDir += File.separator + "hydra";
+		ctx.log("Working Directory: " + sHydraDir);
 		
 		if (fullPathParts.length > 2) {
 			if (fullPathParts.length > 3) {
@@ -113,7 +115,17 @@ public class ConnectionManager {
 		File hydraDir = new File(sHydraDir);
 		if (hydraDir.exists()) {
 			sHydraDir += File.separator;
-			InputStream is = ctx.getResourceAsStream(sHydraDir + HYDRA_PROPERTIES);
+			
+			InputStream is = null;
+			
+			try {
+				is = new FileInputStream(sHydraDir + HYDRA_PROPERTIES);
+				
+			} catch (FileNotFoundException e1) {
+				ctx.log("The properties file at " + (sHydraDir + HYDRA_PROPERTIES) + " could not be found.");
+				e1.printStackTrace();
+			}
+			
 			if (is != null) {
 				Properties properties = new Properties();
 				try {
@@ -166,6 +178,7 @@ public class ConnectionManager {
 		PrintWriter pw;
 		try {
 			pw = new PrintWriter(new FileOutputStream(sHydraDir + HYDRA_PROPERTIES));
+			
 			properties.store(pw, "The passphrase is used to authorize tokens\n Databases should be a comment delimited string of database aliases, followed by their connection properties\n" +
 					" database types:\n   unidata\n   mysql\n   mssql\n   oracle\n   postgresql\n\nexample:" +
 					"databases=mydb\n"
