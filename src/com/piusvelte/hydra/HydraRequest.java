@@ -21,8 +21,12 @@ package com.piusvelte.hydra;
 
 import static com.piusvelte.hydra.ApiServlet.*;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.util.Date;
+import java.util.Scanner;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -76,7 +80,7 @@ public class HydraRequest {
 		target = parts[TARGET];
 		columns = unpackArray(request.getParameter(PARAM_COLUMNS));
 		values = unpackArray(request.getParameter(PARAM_VALUES));
-		arguments = unpackArray(request.getParameter(PARAM_ARGUMENTS));
+		arguments = unpackArgumentsEntity(request);
 		selection = request.getParameter(PARAM_SELECTION);
 		if (selection != null) {
 			selection = URLDecoder.decode(selection, "UTF-8");
@@ -88,6 +92,24 @@ public class HydraRequest {
 		command = request.getParameter(PARAM_COMMAND);
 		if (command != null) {
 			command = URLDecoder.decode(command, "UTF-8");
+		}
+	}
+	
+	private String[] unpackArgumentsEntity(HttpServletRequest request) {
+		try {
+			StringBuffer responseAsStringBuffer = new StringBuffer();
+			Scanner scanner = new Scanner(request.getInputStream());
+			
+			while(scanner.hasNextLine())
+				responseAsStringBuffer.append(scanner.nextLine());
+			
+			return unpackArray(responseAsStringBuffer.toString());
+			
+		} catch (IOException e) {
+			System.err.println("HYDRA " + new Date() + "There was a problem getting the arguments entity. Code: AE01");
+			e.printStackTrace();
+			
+			return null;
 		}
 	}
 	
