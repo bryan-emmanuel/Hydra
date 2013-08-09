@@ -75,8 +75,6 @@ public class HydraRequest {
 	}
 	
 	private HydraRequest(HttpServletRequest request) throws UnsupportedEncodingException {
-		// TODO Modify this!
-		
 		String[] parts = getPathParts(request);
 		database = parts[DATABASE];
 		target = parts[TARGET];

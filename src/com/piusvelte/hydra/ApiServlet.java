@@ -137,8 +137,6 @@ public class ApiServlet extends HttpServlet {
 	 * insert
 	 */
 	public void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		System.out.println("HYDRA INVOKED - " + new java.util.Date()); // TODO Remove for production.
-		
 		ConnectionManager connMgr = ConnectionManager.getInstance(getServletContext());
 		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
 			HydraRequest hydraRequest;
