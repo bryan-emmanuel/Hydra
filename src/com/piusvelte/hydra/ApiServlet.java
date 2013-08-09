@@ -20,9 +20,11 @@
 package com.piusvelte.hydra;
 
 import java.io.IOException;
+import java.util.Scanner;
 
 import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
+import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -135,6 +137,8 @@ public class ApiServlet extends HttpServlet {
 	 * insert
 	 */
 	public void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		System.out.println("HYDRA INVOKED - " + new java.util.Date()); // TODO Remove for production.
+		
 		ConnectionManager connMgr = ConnectionManager.getInstance(getServletContext());
 		if (connMgr.isAuthenticated(request.getParameter(PARAM_TOKEN))) {
 			HydraRequest hydraRequest;
@@ -306,5 +310,4 @@ public class ApiServlet extends HttpServlet {
 			response.setStatus(401);
 		}
 	}
-
 }
